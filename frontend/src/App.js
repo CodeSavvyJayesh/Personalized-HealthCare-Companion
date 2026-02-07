@@ -16,6 +16,7 @@ import Login from "./components/Login";
 import Chat from "./components/Chat";
 import UserMenu from "./components/UserMenu";
 import Dashboard from "./components/Dashboard";
+import DailyRoutine from "./components/DailyRoutine";
 
 import "./App.css";
 import doctorImage from "./doctor.png";
@@ -26,16 +27,17 @@ import { ThemeContext } from "./ThemeContext";
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
-  const [showChatbot, setShowChatbot] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
 
-  const [userEmail, setUserEmail] = useState("");
+  // 🔥 CORE NAVIGATION STATE
+  const [activeModule, setActiveModule] = useState("dashboard");
 
+  const [userEmail, setUserEmail] = useState("");
   const { darkMode } = useContext(ThemeContext);
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setShowChatbot(false);
+    setActiveModule("dashboard");
     setShowSidebar(false);
     setUserEmail("");
   };
@@ -44,14 +46,8 @@ function App() {
     setShowSidebar(!showSidebar);
   };
 
-  const handleDashboardClick = () => {
-    setShowSidebar(false);
-    setShowChatbot(false);
-  };
-
-  // 🔥 THIS IS THE KEY FUNCTION
-  const openChatbot = () => {
-    setShowChatbot(true);
+  const goToDashboard = () => {
+    setActiveModule("dashboard");
     setShowSidebar(false);
   };
 
@@ -169,25 +165,31 @@ function App() {
             className="logo-img clickable"
             onClick={toggleSidebar}
           />
-          <span className="logo-text" onClick={handleDashboardClick}>
+          <span className="logo-text" onClick={goToDashboard}>
             MindWell
           </span>
         </div>
 
         <UserMenu
-          showChatbot={showChatbot}
-          setShowChatbot={setShowChatbot}
           onLogout={handleLogout}
           userEmail={userEmail}
+          onOpenChat={() => setActiveModule("chat")}
         />
       </div>
 
       {/* MAIN CONTENT */}
       <div className="content-area">
-        {showChatbot ? (
-          <Chat />
-        ) : (
-          <Dashboard onOpenChat={openChatbot} />
+        {activeModule === "dashboard" && (
+          <Dashboard
+            onOpenChat={() => setActiveModule("chat")}
+            onOpenDailyRoutine={() => setActiveModule("dailyRoutine")}
+          />
+        )}
+
+        {activeModule === "chat" && <Chat />}
+
+        {activeModule === "dailyRoutine" && (
+          <DailyRoutine onBack={() => setActiveModule("dashboard")} />
         )}
       </div>
     </div>
