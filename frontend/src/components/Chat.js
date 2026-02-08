@@ -34,18 +34,38 @@ function Chat() {
   const recognitionRef = useRef(null);
   const langMenuRef = useRef(null);
 
+  // 🔥 NEW: voices handling
+  const voicesRef = useRef([]);
+  const ttsUnlockedRef = useRef(false);
+
   const languages = [
     { code: "en-US", name: "English" },
     { code: "hi-IN", name: "Hindi" },
     { code: "mr-IN", name: "Marathi" },
   ];
 
-  /* Auto scroll */
+  /* ======================
+     AUTO SCROLL
+  ====================== */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
-  /* Close language menu */
+  /* ======================
+     LOAD VOICES (CRITICAL)
+  ====================== */
+  useEffect(() => {
+    const loadVoices = () => {
+      voicesRef.current = window.speechSynthesis.getVoices();
+    };
+
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }, []);
+
+  /* ======================
+     CLOSE LANGUAGE MENU
+  ====================== */
   useEffect(() => {
     const handler = (e) => {
       if (langMenuRef.current && !langMenuRef.current.contains(e.target)) {
@@ -56,7 +76,9 @@ function Chat() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  /* 🎤 SPEECH TO TEXT */
+  /* ======================
+     🎤 SPEECH TO TEXT
+  ====================== */
   const handleMicClick = () => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -78,7 +100,6 @@ function Chat() {
 
     recognition.onstart = () => setIsListening(true);
     recognition.onend = () => setIsListening(false);
-
     recognition.onresult = (e) => {
       setInput(e.results[0][0].transcript);
     };
@@ -87,17 +108,56 @@ function Chat() {
     recognition.start();
   };
 
-  /* 🔊 TEXT TO SPEECH */
+  /* ======================
+     🔊 TEXT TO SPEECH (FIXED)
+  ====================== */
+  const unlockTTS = () => {
+    if (ttsUnlockedRef.current) return;
+    const u = new SpeechSynthesisUtterance(" ");
+    window.speechSynthesis.speak(u);
+    ttsUnlockedRef.current = true;
+  };
+
+  const getBestVoice = (lang) => {
+    const voices = voicesRef.current;
+
+    // Exact match
+    let voice = voices.find((v) => v.lang === lang);
+
+    // Hindi fallback
+    if (!voice && lang === "mr-IN") {
+      voice = voices.find((v) => v.lang === "hi-IN");
+    }
+
+    // Any matching prefix
+    if (!voice) {
+      voice = voices.find((v) => v.lang.startsWith(lang.split("-")[0]));
+    }
+
+    return voice || null;
+  };
+
   const speakText = (text) => {
     if (!window.speechSynthesis) return;
+
+    unlockTTS();
     window.speechSynthesis.cancel();
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = language;
     utterance.rate = 0.95;
+
+    const selectedVoice = getBestVoice(language);
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+
     window.speechSynthesis.speak(utterance);
   };
 
-  /* 🚀 SEND MESSAGE */
+  /* ======================
+     🚀 SEND MESSAGE
+  ====================== */
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
@@ -122,7 +182,6 @@ function Chat() {
       });
 
       const data = await res.json();
-
       const botText = data.reply || "I’m here with you 💙";
 
       const botMsg = {
@@ -208,28 +267,13 @@ function Chat() {
             </div>
 
             <div className="message-bubble">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  p: ({ children }) => (
-                    <p className="md-p">{children}</p>
-                  ),
-                  li: ({ children }) => (
-                    <li className="md-li">{children}</li>
-                  ),
-                  strong: ({ children }) => (
-                    <strong className="md-strong">{children}</strong>
-                  ),
-                }}
-              >
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {m.text}
               </ReactMarkdown>
-
               <span className="timestamp">{m.timestamp}</span>
             </div>
           </div>
         ))}
-
         <div ref={messagesEndRef} />
       </div>
 
