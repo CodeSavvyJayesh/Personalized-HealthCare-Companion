@@ -1,114 +1,113 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import requests
-from db import users_collection
-from passlib.context import CryptContext
-from utils import send_otp_email
-import secrets
-import time
 import threading
+import time
+import secrets
 
-# Translator
+from passlib.context import CryptContext
 from deep_translator import GoogleTranslator
+
+from db import users_collection
+from utils import send_otp_email
 
 app = FastAPI()
 
+# ================= SECURITY =================
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 otp_store = {}
 
-# ---------------- MIDDLEWARE ----------------
-
+# ================= CORS =================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # restrict in prod
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ---------------- CONSTANTS ----------------
-
-SYSTEM_PROMPT = (
-    "You are an empathetic, calm, and emotionally supportive mental health companion. "
-    "Your primary role is to listen deeply, validate emotions, and respond with warmth and care. "
-
-    "Always acknowledge the user's feelings first before anything else. "
-    "Use gentle, human language that makes the user feel heard and understood. "
-    "Avoid being clinical, robotic, or overly technical. "
-
-    "Do give medical diagnoses, do prescribe medication, "
-    "and do NOT encourage harmful behavior. "
-    "If the user expresses distress, sadness, anxiety, loneliness, or overwhelm, "
-    "respond with compassion, reassurance, and emotional validation. "
-
-    "Encourage reflection using soft, open-ended questions. "
-    "Ask at most ONE gentle follow-up question per reply. "
-
-    "Keep responses between 2 to 10 short, emotionally rich sentences. "
-    "Never judge, never shame, never dismiss feelings. "
-    "If a question is political, technical, or unrelated to mental well-being, "
-    "politely redirect the conversation back to emotional support."
-)
-
+# ================= AI CONFIG =================
 MODEL_NAME = "llama3:8b"
 OLLAMA_URL = "http://127.0.0.1:11434/v1/chat/completions"
 
+SYSTEM_PROMPT = """
+You are an empathetic, calm, emotionally supportive mental health companion.
+
+IMPORTANT RESPONSE FORMAT RULES:
+- Always respond in VALID MARKDOWN
+- Use bullet points or numbered lists when giving steps or tips
+- Use **bold** for headings or key ideas
+- Add a blank line between paragraphs
+- Keep responses structured and easy to read
+
+Behavior rules:
+- Always acknowledge emotions first
+- Never judge or shame
+- No medical diagnosis or medication advice
+- Ask at most ONE gentle follow-up question
+- Keep replies 2–8 short sentences
+- Warm, human, comforting tone
+"""
+
+
+# 🔥 IMPORTANT: MATCH FRONTEND LANGUAGES
 LANG_CODE_MAP = {
     "en-US": "en",
     "hi-IN": "hi",
-    "mr-IN": "mr"
+    "mr-IN": "mr",
 }
 
-# ---------------- MODEL WARM-UP ----------------
-
+# ================= MODEL WARMUP =================
 def warm_up_model():
     try:
-        payload = {
-            "model": MODEL_NAME,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": "Hello"}
-            ],
-            "temperature": 0.8,
-            "top_p": 0.9
-        }
-        requests.post(OLLAMA_URL, json=payload, timeout=30)
+        requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL_NAME,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": "Hello"}
+                ],
+            },
+            timeout=30
+        )
         print("✅ LLaMA-3 warmed up")
     except Exception as e:
-        print("⚠️ Warm-up failed:", e)
+        print("⚠️ Warmup failed:", e)
 
 threading.Thread(target=warm_up_model, daemon=True).start()
 
-# ---------------- CHAT ROUTE ----------------
-
+# ================= CHAT =================
 @app.post("/chat")
 async def chat_endpoint(request: Request):
     data = await request.json()
 
-    user_message = data.get("text", "").strip()
+    user_text = data.get("text", "").strip()
     language_code = data.get("language", "en-US")
     source_lang = LANG_CODE_MAP.get(language_code, "en")
 
-    if not user_message:
+    if not user_text:
         return {"reply": "I’m here with you 💙 Take your time."}
 
-    # 1️⃣ Translate input → English
-    user_message_en = user_message
-    if source_lang != "en":
-        user_message_en = GoogleTranslator(
-            source=source_lang,
-            target="en"
-        ).translate(user_message)
+    print("🌍 Language:", language_code)
 
-    # 2️⃣ Send to LLaMA-3
+    # 1️⃣ Translate → English
+    user_text_en = user_text
+    if source_lang != "en":
+        user_text_en = GoogleTranslator(
+            source=source_lang, target="en"
+        ).translate(user_text)
+
+    print("🧑 User (EN):", user_text_en)
+
     payload = {
         "model": MODEL_NAME,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message_en}
+            {"role": "user", "content": user_text_en},
         ],
         "temperature": 0.8,
-        "top_p": 0.9
+        "top_p": 0.9,
     }
 
     try:
@@ -118,30 +117,24 @@ async def chat_endpoint(request: Request):
         result = response.json()
         bot_reply_en = result["choices"][0]["message"]["content"]
 
-        # 3️⃣ Translate back → original language
+        print("🤖 LLaMA (EN):", bot_reply_en)
+
+        # 2️⃣ Translate back
         final_reply = bot_reply_en
         if source_lang != "en":
             final_reply = GoogleTranslator(
-                source="en",
-                target=source_lang
+                source="en", target=source_lang
             ).translate(bot_reply_en)
 
         return {"reply": final_reply}
 
     except Exception as e:
-        print("Chat error:", e)
+        print("❌ Chat error:", e)
         return {
-            "reply": (
-                "सध्या काही अडचण येत आहे 💙."
-                if source_lang == "mr"
-                else "अभी कुछ समस्या हो रही है 💙."
-                if source_lang == "hi"
-                else "I’m having a little trouble right now, but I’m still here 💙."
-            )
+            "reply": "I’m having a little trouble right now, but I’m still here 💙"
         }
 
-# ---------------- AUTH & OTP ----------------
-
+# ================= AUTH =================
 @app.post("/signup")
 async def signup(request: Request):
     data = await request.json()
@@ -149,14 +142,17 @@ async def signup(request: Request):
     password = data.get("password")
 
     if not username or not password:
-        return {"success": False, "message": "Username and password required"}
+        return {"success": False, "message": "Missing fields"}
 
     if users_collection.find_one({"username": username}):
-        return {"success": False, "message": "Username already taken"}
+        return {"success": False, "message": "User exists"}
 
-    hashed_password = pwd_context.hash(password)
-    users_collection.insert_one({"username": username, "password": hashed_password})
-    return {"success": True, "message": "Signup successful"}
+    users_collection.insert_one({
+        "username": username,
+        "password": pwd_context.hash(password),
+    })
+
+    return {"success": True}
 
 @app.post("/login")
 async def login(request: Request):
@@ -166,23 +162,21 @@ async def login(request: Request):
 
     user = users_collection.find_one({"username": username})
     if not user or not pwd_context.verify(password, user["password"]):
-        return {"success": False, "message": "Invalid username or password"}
+        return {"success": False}
 
-    return {"success": True, "message": "Login successful"}
+    return {"success": True}
 
+# ================= OTP =================
 @app.post("/send-otp")
 async def send_otp(request: Request):
     data = await request.json()
     email = data.get("email")
 
     otp = str(secrets.randbelow(1000000)).zfill(6)
-    otp_store[email] = {"otp": otp, "timestamp": time.time()}
+    otp_store[email] = {"otp": otp, "time": time.time()}
 
-    try:
-        await send_otp_email(email, otp)
-        return {"success": True, "message": "OTP sent successfully"}
-    except:
-        return {"success": False, "message": "Failed to send OTP"}
+    await send_otp_email(email, otp)
+    return {"success": True}
 
 @app.post("/verify-otp")
 async def verify_otp(request: Request):
@@ -193,14 +187,15 @@ async def verify_otp(request: Request):
 
     record = otp_store.get(email)
     if not record or record["otp"] != otp:
-        return {"success": False, "message": "Invalid or expired OTP"}
+        return {"success": False}
 
-    if time.time() - record["timestamp"] > 300:
-        del otp_store[email]
-        return {"success": False, "message": "OTP expired"}
+    if time.time() - record["time"] > 300:
+        return {"success": False}
 
-    hashed_password = pwd_context.hash(password)
-    users_collection.insert_one({"username": email, "password": hashed_password})
+    users_collection.insert_one({
+        "username": email,
+        "password": pwd_context.hash(password),
+    })
+
     del otp_store[email]
-
-    return {"success": True, "message": "OTP verified and account created"}
+    return {"success": True}

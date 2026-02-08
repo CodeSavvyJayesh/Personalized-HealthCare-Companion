@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FiArrowLeft,
   FiPlus,
   FiTrash2,
   FiCheckCircle,
+  FiEdit2,
+  FiStar,
 } from "react-icons/fi";
 import "./DailyRoutine.css";
 
@@ -20,8 +22,21 @@ export default function DailyRoutine({ onBack }) {
   const [showModal, setShowModal] = useState(false);
   const [newTask, setNewTask] = useState("");
   const [newTime, setNewTime] = useState("");
+  const [priority, setPriority] = useState(false);
+
+  /* 🔥 Persist tasks */
+  useEffect(() => {
+    const saved = localStorage.getItem("dailyTasks");
+    if (saved) setTasks(JSON.parse(saved));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("dailyTasks", JSON.stringify(tasks));
+  }, [tasks]);
 
   const completedCount = tasks.filter((t) => t.done).length;
+  const progress =
+    tasks.length === 0 ? 0 : Math.round((completedCount / tasks.length) * 100);
 
   const addTask = () => {
     if (!newTask.trim()) return;
@@ -33,11 +48,14 @@ export default function DailyRoutine({ onBack }) {
         title: newTask,
         time: newTime || "Anytime",
         done: false,
+        priority,
+        editing: false,
       },
     ]);
 
     setNewTask("");
     setNewTime("");
+    setPriority(false);
     setShowModal(false);
   };
 
@@ -51,6 +69,22 @@ export default function DailyRoutine({ onBack }) {
 
   const deleteTask = (id) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const toggleEdit = (id) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, editing: !t.editing } : t
+      )
+    );
+  };
+
+  const updateTitle = (id, value) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, title: value } : t
+      )
+    );
   };
 
   return (
@@ -70,17 +104,31 @@ export default function DailyRoutine({ onBack }) {
 
       {/* PROGRESS */}
       <div className="routine-progress">
-        <FiCheckCircle />
-        <span>
-          {completedCount} / {tasks.length} tasks completed
-        </span>
+        <div className="progress-ring">
+          <svg>
+            <circle cx="36" cy="36" r="32" />
+            <circle
+              cx="36"
+              cy="36"
+              r="32"
+              style={{
+                strokeDashoffset: 200 - (200 * progress) / 100,
+              }}
+            />
+          </svg>
+          <span>{progress}%</span>
+        </div>
+
+        <div>
+          <strong>{completedCount}</strong> / {tasks.length} completed
+        </div>
       </div>
 
       {/* EMPTY STATE */}
       {tasks.length === 0 && (
         <div className="empty-state">
-          <p>No tasks yet 🌱</p>
-          <span>Click + to plan your day</span>
+          <h3>Plan your perfect day ✨</h3>
+          <p>Add tasks like workouts, study, meditation, or self-care</p>
         </div>
       )}
 
@@ -89,19 +137,32 @@ export default function DailyRoutine({ onBack }) {
         {tasks.map((task) => (
           <div
             key={task.id}
-            className={`task-card ${task.done ? "done" : ""}`}
+            className={`task-card ${task.done ? "done" : ""} ${
+              task.priority ? "priority" : ""
+            }`}
           >
             <div onClick={() => toggleTask(task.id)}>
-              <h3>{task.title}</h3>
+              {task.editing ? (
+                <input
+                  value={task.title}
+                  onChange={(e) =>
+                    updateTitle(task.id, e.target.value)
+                  }
+                  onBlur={() => toggleEdit(task.id)}
+                  autoFocus
+                />
+              ) : (
+                <h3>{task.title}</h3>
+              )}
               <p>{task.time}</p>
             </div>
 
             <div className="task-actions">
-              <input
-                type="checkbox"
-                checked={task.done}
-                readOnly
-              />
+              {task.priority && <FiStar className="star" />}
+              <input type="checkbox" checked={task.done} readOnly />
+              <button onClick={() => toggleEdit(task.id)}>
+                <FiEdit2 />
+              </button>
               <button onClick={() => deleteTask(task.id)}>
                 <FiTrash2 />
               </button>
@@ -136,6 +197,15 @@ export default function DailyRoutine({ onBack }) {
               value={newTime}
               onChange={(e) => setNewTime(e.target.value)}
             />
+
+            <label className="priority-toggle">
+              <input
+                type="checkbox"
+                checked={priority}
+                onChange={() => setPriority(!priority)}
+              />
+              Mark as priority
+            </label>
 
             <div className="modal-actions">
               <button onClick={() => setShowModal(false)}>
