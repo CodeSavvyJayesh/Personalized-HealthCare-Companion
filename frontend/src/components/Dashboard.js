@@ -86,6 +86,7 @@ function Dashboard({ onNavigate }) {
       icon: <FiTrendingUp size={28} />,
       color: "#6366f1",
     },
+    
   ];
 
   return (
