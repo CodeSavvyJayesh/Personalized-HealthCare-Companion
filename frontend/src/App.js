@@ -11,6 +11,7 @@ import Chat from "./components/Chat";
 import UserMenu from "./components/UserMenu";
 import DailyRoutine from "./components/DailyRoutine";
 import MoodTracker from "./components/MoodTracker";
+import Resources from "./components/Resources/Resources";
 
 
 import mediverseLogo from "./mediverseLogo.png";
@@ -34,7 +35,7 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
 
-  // 🔥 CORE NAVIGATION
+  // 🔥 CORE NAVIGATION STATE
   const [activeModule, setActiveModule] = useState("dashboard");
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -54,7 +55,7 @@ function App() {
   };
 
   const toggleSidebar = () => {
-    setIsSidebarOpen((p) => !p);
+    setIsSidebarOpen((prev) => !prev);
   };
 
   const navigateTo = (module) => {
@@ -147,6 +148,7 @@ function App() {
             {isSidebarOpen && <span>Mood Tracker</span>}
           </button>
 
+<<<<<<< HEAD
           {/* ✅ JOURNALING ADDED */}
           <button
             className={`nav-item ${
@@ -161,11 +163,21 @@ function App() {
           <button className="nav-item">
             <FiActivity />
             {isSidebarOpen && <span>Insights</span>}
+=======
+          <button
+            className={`nav-item ${
+              activeModule === "resources" ? "active" : ""
+            }`}
+            onClick={() => navigateTo("resources")}
+          >
+            <FiBookOpen />
+            {isSidebarOpen && <span>Resources</span>}
+>>>>>>> 696e752daab1389ad259f694505a68d5ca0ea448
           </button>
 
           <button className="nav-item">
-            <FiBookOpen />
-            {isSidebarOpen && <span>Resources</span>}
+            <FiActivity />
+            {isSidebarOpen && <span>Insights</span>}
           </button>
         </nav>
 
@@ -191,7 +203,11 @@ function App() {
               {activeModule === "chat" && "MindWell Therapist"}
               {activeModule === "dailyRoutine" && "Daily Routine"}
               {activeModule === "mood" && "Mood Tracker"}
+<<<<<<< HEAD
               {activeModule === "journaling" && "Journaling"}
+=======
+              {activeModule === "resources" && "Resources"}
+>>>>>>> 696e752daab1389ad259f694505a68d5ca0ea448
             </h2>
           </div>
 
@@ -204,7 +220,7 @@ function App() {
           </div>
         </header>
 
-        {/* MODULE RENDERING */}
+        {/* MODULE RENDER */}
         <div className="content-scrollable">
           {activeModule === "dashboard" && (
             <Dashboard onNavigate={navigateTo} />
@@ -216,8 +232,12 @@ function App() {
 
           {activeModule === "mood" && <MoodTracker />}
 
+<<<<<<< HEAD
           {/* ✅ JOURNALING RENDER */}
           {activeModule === "journaling" && <Journaling />}
+=======
+          {activeModule === "resources" && <Resources />}
+>>>>>>> 696e752daab1389ad259f694505a68d5ca0ea448
         </div>
       </main>
     </div>
