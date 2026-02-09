@@ -1,0 +1,110 @@
+/* Page container */
+.journaling-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+/* Big journaling input */
+.journaling-container textarea {
+  width: 100%;
+  min-height: 220px;
+  padding: 26px;
+  font-size: 18px;          /* BIG TEXT */
+  line-height: 1.8;
+  border-radius: 18px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #111827;
+  resize: none;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+}
+
+.journaling-container textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+}
+
+/* Save / Update button */
+.journaling-container button {
+  margin-top: 18px;
+  padding: 12px 28px;
+  font-size: 15px;
+  border-radius: 12px;
+  border: none;
+  background-color: #2563eb;
+  color: #ffffff;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.journaling-container button:hover {
+  background-color: #1e40af;
+  transform: translateY(-1px);
+}
+
+/* Entries list */
+.journal-list {
+  margin-top: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* Entry card */
+.journal-item {
+  background: #ffffff;
+  padding: 24px 26px;
+  border-radius: 18px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* Entry text */
+.journal-item p {
+  font-size: 17px;          /* BIG TEXT */
+  line-height: 1.9;
+  color: #111827;
+  margin-bottom: 14px;
+  white-space: pre-wrap;
+}
+
+/* Date */
+.journal-item small {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* Edit/Delete */
+.journal-item .actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 16px;
+}
+
+.journal-item .actions button {
+  background: transparent;
+  color: #2563eb;
+  border: none;
+  font-size: 14px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.journal-item .actions button:hover {
+  text-decoration: underline;
+}
+
+/* Dark mode */
+.dark .journaling-container textarea,
+.dark .journal-item {
+  background: #0f172a;
+  color: #f9fafb;
+  border-color: #1e293b;
+}
+
+.dark .journal-item small {
+  color: #9ca3af;
+}

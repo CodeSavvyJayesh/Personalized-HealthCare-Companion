@@ -1,3 +1,6 @@
+import Journaling from "./components/Journaling";
+
+
 import React, { useState, useContext } from "react";
 import { ThemeContext } from "./ThemeContext";
 
@@ -8,6 +11,7 @@ import Chat from "./components/Chat";
 import UserMenu from "./components/UserMenu";
 import DailyRoutine from "./components/DailyRoutine";
 import MoodTracker from "./components/MoodTracker";
+
 
 import mediverseLogo from "./mediverseLogo.png";
 import doctorImage from "./doctor.png";
@@ -137,7 +141,6 @@ function App() {
             {isSidebarOpen && <span>Daily Routine</span>}
           </button>
 
-          {/* 🔥 MOOD TRACKER CONNECTED */}
           <button
             className={`nav-item ${
               activeModule === "mood" ? "active" : ""
@@ -146,6 +149,17 @@ function App() {
           >
             <FiSmile />
             {isSidebarOpen && <span>Mood Tracker</span>}
+          </button>
+
+          {/* ✅ JOURNALING ADDED */}
+          <button
+            className={`nav-item ${
+              activeModule === "journaling" ? "active" : ""
+            }`}
+            onClick={() => navigateTo("journaling")}
+          >
+            <FiBookOpen />
+            {isSidebarOpen && <span>Journaling</span>}
           </button>
 
           <button className="nav-item">
@@ -181,6 +195,7 @@ function App() {
               {activeModule === "chat" && "MindWell Therapist"}
               {activeModule === "dailyRoutine" && "Daily Routine"}
               {activeModule === "mood" && "Mood Tracker"}
+              {activeModule === "journaling" && "Journaling"}
             </h2>
           </div>
 
@@ -204,6 +219,9 @@ function App() {
           {activeModule === "dailyRoutine" && <DailyRoutine />}
 
           {activeModule === "mood" && <MoodTracker />}
+
+          {/* ✅ JOURNALING RENDER */}
+          {activeModule === "journaling" && <Journaling />}
         </div>
       </main>
     </div>
