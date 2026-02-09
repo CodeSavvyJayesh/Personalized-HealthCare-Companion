@@ -183,6 +183,19 @@
   background-color: var(--bg-primary);
 }
 
+/* Chat Mode: Disable scroll on parent, make it a flex column */
+.content-scrollable.chat-mode {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure Chat component fills the height */
+.content-scrollable.chat-mode>* {
+  flex: 1;
+  height: 100%;
+}
+
 /* --- Auth Styling --- */
 .auth-layout {
   height: 100vh;
