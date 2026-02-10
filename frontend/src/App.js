@@ -8,6 +8,10 @@ import Chat from "./components/Chat";
 import UserMenu from "./components/UserMenu";
 import DailyRoutine from "./components/DailyRoutine";
 import MoodTracker from "./components/MoodTracker";
+import Journaling from "./components/Journaling";
+import CalmSounds from "./components/CalmSounds";
+import Resources from "./components/Resources/Resources";
+import Meditation from "./components/Meditation"; // Imported Meditation
 
 import mediverseLogo from "./mediverseLogo.png";
 import doctorImage from "./doctor.png";
@@ -118,7 +122,14 @@ function App() {
             {isSidebarOpen && <span>Daily Routine</span>}
           </button>
 
-          {/* 🔥 MOOD TRACKER CONNECTED */}
+          <button
+            className={`nav-item ${activeModule === "meditation" ? "active" : ""}`}
+            onClick={() => navigateTo("meditation")}
+          >
+            <FiMoon size={20} />
+            {isSidebarOpen && <span>Meditation</span>}
+          </button>
+
           <button
             className={`nav-item ${activeModule === "mood" ? "active" : ""}`}
             onClick={() => navigateTo("mood")}
@@ -127,13 +138,27 @@ function App() {
             {isSidebarOpen && <span>Mood Tracker</span>}
           </button>
 
-          <button className="nav-item">
-            <FiActivity />
-            {isSidebarOpen && <span>Insights</span>}
+          <button
+            className={`nav-item ${activeModule === "journaling" ? "active" : ""}`}
+            onClick={() => navigateTo("journaling")}
+          >
+            <FiBookOpen size={20} />
+            {isSidebarOpen && <span>Journaling</span>}
           </button>
 
-          <button className="nav-item">
-            <FiBookOpen />
+          <button
+            className={`nav-item ${activeModule === "calmSounds" ? "active" : ""}`}
+            onClick={() => navigateTo("calmSounds")}
+          >
+            <FiActivity size={20} />
+            {isSidebarOpen && <span>Calm Sounds</span>}
+          </button>
+
+          <button
+            className={`nav-item ${activeModule === "resources" ? "active" : ""}`}
+            onClick={() => navigateTo("resources")}
+          >
+            <FiBookOpen size={20} />
             {isSidebarOpen && <span>Resources</span>}
           </button>
         </nav>
@@ -158,7 +183,11 @@ function App() {
               {activeModule === "dashboard" && "Dashboard"}
               {activeModule === "chat" && "MindWell Therapist"}
               {activeModule === "dailyRoutine" && "Daily Routine"}
+              {activeModule === "meditation" && "Meditation & Focus"}
               {activeModule === "mood" && "Mood Tracker"}
+              {activeModule === "journaling" && "Journaling"}
+              {activeModule === "calmSounds" && "Calm Sounds"}
+              {activeModule === "resources" && "Resources"}
             </h2>
           </div>
 
@@ -171,15 +200,20 @@ function App() {
           </div>
         </header>
 
-        {/* MODULE RENDERING */}
-        <div className="content-scrollable">
+        {/* content-scrollable with chat-mode conditional class for better scrolling */}
+        <div
+          className={`content-scrollable ${activeModule === "chat" ? "chat-mode" : ""}`}
+        >
           {activeModule === "dashboard" && (
             <Dashboard onNavigate={navigateTo} />
           )}
-
           {activeModule === "chat" && <Chat />}
           {activeModule === "dailyRoutine" && <DailyRoutine />}
+          {activeModule === "meditation" && <Meditation />}
           {activeModule === "mood" && <MoodTracker />}
+          {activeModule === "journaling" && <Journaling />}
+          {activeModule === "calmSounds" && <CalmSounds />}
+          {activeModule === "resources" && <Resources />}
         </div>
       </main>
     </div>
