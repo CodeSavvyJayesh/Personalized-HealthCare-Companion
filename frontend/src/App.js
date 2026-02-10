@@ -1,6 +1,3 @@
-import Journaling from "./components/Journaling";
-
-
 import React, { useState, useContext } from "react";
 import { ThemeContext } from "./ThemeContext";
 
@@ -11,8 +8,9 @@ import Chat from "./components/Chat";
 import UserMenu from "./components/UserMenu";
 import DailyRoutine from "./components/DailyRoutine";
 import MoodTracker from "./components/MoodTracker";
+import Journaling from "./components/Journaling";
+import CalmSounds from "./components/CalmSounds";
 import Resources from "./components/Resources/Resources";
-
 
 import mediverseLogo from "./mediverseLogo.png";
 import doctorImage from "./doctor.png";
@@ -34,10 +32,7 @@ import "./App.css";
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
-
-  // 🔥 CORE NAVIGATION STATE
   const [activeModule, setActiveModule] = useState("dashboard");
-
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userEmail, setUserEmail] = useState("");
 
@@ -54,20 +49,13 @@ function App() {
     setUserEmail("");
   };
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen((prev) => !prev);
-  };
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   const navigateTo = (module) => {
     setActiveModule(module);
-    if (window.innerWidth < 768) {
-      setIsSidebarOpen(false);
-    }
+    if (window.innerWidth < 768) setIsSidebarOpen(false);
   };
 
-  /* =========================
-     AUTH SCREENS
-  ========================= */
   if (!isLoggedIn) {
     return (
       <div className="auth-layout">
@@ -79,7 +67,6 @@ function App() {
               <p>Your personalized mental health companion</p>
             </div>
           </div>
-
           <div className="auth-right">
             {showSignup ? (
               <Signup onSignupSuccess={() => setShowSignup(false)} />
@@ -95,9 +82,6 @@ function App() {
     );
   }
 
-  /* =========================
-     MAIN APP
-  ========================= */
   return (
     <div
       className={`app-container ${
@@ -113,9 +97,7 @@ function App() {
 
         <nav className="sidebar-nav">
           <button
-            className={`nav-item ${
-              activeModule === "dashboard" ? "active" : ""
-            }`}
+            className={`nav-item ${activeModule === "dashboard" ? "active" : ""}`}
             onClick={() => navigateTo("dashboard")}
           >
             <FiHome />
@@ -131,9 +113,7 @@ function App() {
           </button>
 
           <button
-            className={`nav-item ${
-              activeModule === "dailyRoutine" ? "active" : ""
-            }`}
+            className={`nav-item ${activeModule === "dailyRoutine" ? "active" : ""}`}
             onClick={() => navigateTo("dailyRoutine")}
           >
             <FiCalendar />
@@ -148,36 +128,28 @@ function App() {
             {isSidebarOpen && <span>Mood Tracker</span>}
           </button>
 
-<<<<<<< HEAD
-          {/* ✅ JOURNALING ADDED */}
           <button
-            className={`nav-item ${
-              activeModule === "journaling" ? "active" : ""
-            }`}
+            className={`nav-item ${activeModule === "journaling" ? "active" : ""}`}
             onClick={() => navigateTo("journaling")}
           >
             <FiBookOpen />
             {isSidebarOpen && <span>Journaling</span>}
           </button>
 
-          <button className="nav-item">
-            <FiActivity />
-            {isSidebarOpen && <span>Insights</span>}
-=======
           <button
-            className={`nav-item ${
-              activeModule === "resources" ? "active" : ""
-            }`}
+            className={`nav-item ${activeModule === "calmSounds" ? "active" : ""}`}
+            onClick={() => navigateTo("calmSounds")}
+          >
+            <FiActivity />
+            {isSidebarOpen && <span>Calm Sounds</span>}
+          </button>
+
+          <button
+            className={`nav-item ${activeModule === "resources" ? "active" : ""}`}
             onClick={() => navigateTo("resources")}
           >
             <FiBookOpen />
             {isSidebarOpen && <span>Resources</span>}
->>>>>>> 696e752daab1389ad259f694505a68d5ca0ea448
-          </button>
-
-          <button className="nav-item">
-            <FiActivity />
-            {isSidebarOpen && <span>Insights</span>}
           </button>
         </nav>
 
@@ -191,7 +163,6 @@ function App() {
 
       {/* MAIN CONTENT */}
       <main className="main-content">
-        {/* TOP NAVBAR */}
         <header className="navbar">
           <div className="navbar-left">
             <button className="menu-toggle" onClick={toggleSidebar}>
@@ -203,11 +174,9 @@ function App() {
               {activeModule === "chat" && "MindWell Therapist"}
               {activeModule === "dailyRoutine" && "Daily Routine"}
               {activeModule === "mood" && "Mood Tracker"}
-<<<<<<< HEAD
               {activeModule === "journaling" && "Journaling"}
-=======
+              {activeModule === "calmSounds" && "Calm Sounds"}
               {activeModule === "resources" && "Resources"}
->>>>>>> 696e752daab1389ad259f694505a68d5ca0ea448
             </h2>
           </div>
 
@@ -220,24 +189,14 @@ function App() {
           </div>
         </header>
 
-        {/* MODULE RENDER */}
         <div className="content-scrollable">
-          {activeModule === "dashboard" && (
-            <Dashboard onNavigate={navigateTo} />
-          )}
-
+          {activeModule === "dashboard" && <Dashboard onNavigate={navigateTo} />}
           {activeModule === "chat" && <Chat />}
-
           {activeModule === "dailyRoutine" && <DailyRoutine />}
-
           {activeModule === "mood" && <MoodTracker />}
-
-<<<<<<< HEAD
-          {/* ✅ JOURNALING RENDER */}
           {activeModule === "journaling" && <Journaling />}
-=======
+          {activeModule === "calmSounds" && <CalmSounds />}
           {activeModule === "resources" && <Resources />}
->>>>>>> 696e752daab1389ad259f694505a68d5ca0ea448
         </div>
       </main>
     </div>

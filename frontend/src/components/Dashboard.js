@@ -61,7 +61,7 @@ function Dashboard({ onNavigate }) {
       color: "#3b82f6",
     },
     {
-      id: "music",
+      id: "calmSounds",
       title: "Calm Sounds",
       desc: "Curated playlists for relaxation.",
       icon: <FiMusic size={28} />,
