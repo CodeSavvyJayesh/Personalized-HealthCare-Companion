@@ -1,0 +1,152 @@
+/* ===============================
+   PAGE CONTAINER
+================================ */
+.journaling-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 32px 28px;
+  
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, #4f46e5 0%, transparent 40%),
+    radial-gradient(circle at bottom right, #38bdf8 0%, transparent 40%),
+    linear-gradient(180deg, #020617, #020617);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===============================
+   TEXTAREA (MAIN WRITING AREA)
+================================ */
+.journaling-container textarea {
+  width: 100%;
+  min-height: 280px;              /* LONG writing area */
+  padding: 28px 30px;
+
+  font-size: 18px;
+  line-height: 1.85;
+  font-family: "Segoe UI", sans-serif;
+
+  border-radius: 18px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+
+  resize: none;
+
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.08);
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.journaling-container textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+}
+
+/* ===============================
+   SAVE / UPDATE BUTTON (SMALL)
+================================ */
+.journaling-container > button {
+  margin-top: 12px;
+  align-self: flex-end;            /* RIGHT aligned */
+
+  padding: 8px 18px;               /* SMALL button */
+  font-size: 14px;
+  font-weight: 500;
+
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+
+  background-color: #2563eb;
+  color: #ffffff;
+
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.35);
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.journaling-container > button:hover {
+  background-color: #1e40af;
+  transform: translateY(-1px);
+}
+
+/* ===============================
+   JOURNAL LIST
+================================ */
+.journal-list {
+  margin-top: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* ===============================
+   JOURNAL ENTRY CARD
+================================ */
+.journal-item {
+  background: #ffffff;
+  padding: 22px 24px;
+  border-radius: 18px;
+  border: 1px solid #e5e7eb;
+
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* ===============================
+   JOURNAL TEXT
+================================ */
+.journal-item p {
+  font-size: 16.5px;
+  line-height: 1.9;
+  color: #0f172a;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+
+/* ===============================
+   DATE / TIME
+================================ */
+.journal-item small {
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+/* ===============================
+   EDIT / DELETE ACTIONS
+================================ */
+.journal-item .actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 16px;
+}
+
+.journal-item .actions button {
+  background: transparent;
+  border: none;
+  padding: 0;
+
+  font-size: 14px;
+  font-weight: 500;
+  color: #2563eb;
+
+  cursor: pointer;
+}
+
+.journal-item .actions button:hover {
+  text-decoration: underline;
+}
+
+/* ===============================
+   DARK MODE SUPPORT
+================================ */
+.dark .journaling-container textarea,
+.dark .journal-item {
+  background: #0f172a;
+  color: #e5e7eb;
+  border-color: #1e293b;
+}
+
+.dark .journal-item small {
+  color: #9ca3af;
+}

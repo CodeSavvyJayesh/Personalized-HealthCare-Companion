@@ -135,6 +135,7 @@
 // export default Dashboard;
 
 import React from "react";
+
 import {
   FiMessageSquare,
   FiCalendar,
@@ -182,7 +183,8 @@ function Dashboard({ onNavigate }) {
       isPrimary: false,
     },
     {
-      id: "journal",
+      // 🔥 IMPORTANT: MUST MATCH App.js
+      id: "journaling",
       title: "Journaling",
       desc: "Write down your thoughts securely.",
       icon: <FiBook size={28} />,
@@ -196,7 +198,7 @@ function Dashboard({ onNavigate }) {
       color: "#3b82f6",
     },
     {
-      id: "music",
+      id: "calmSounds",
       title: "Calm Sounds",
       desc: "Curated playlists for relaxation.",
       icon: <FiMusic size={28} />,
@@ -247,8 +249,15 @@ function Dashboard({ onNavigate }) {
         {modules.map((module) => (
           <div
             key={module.id}
+<<<<<<< HEAD
             className={`module-card ${module.isPrimary ? "primary-card" : ""}`}
             onClick={() => handleModuleClick(module.id)}
+=======
+            className={`module-card ${
+              module.isPrimary ? "primary-card" : ""
+            }`}
+            onClick={() => onNavigate(module.id)}
+>>>>>>> origin/main
           >
             <div
               className="card-icon"
@@ -259,10 +268,12 @@ function Dashboard({ onNavigate }) {
             >
               {module.icon}
             </div>
+
             <div className="card-content">
               <h3>{module.title}</h3>
               <p>{module.desc}</p>
             </div>
+
             {module.isPrimary && (
               <button className="primary-btn">Start Session</button>
             )}
@@ -274,3 +285,4 @@ function Dashboard({ onNavigate }) {
 }
 
 export default Dashboard;
+
