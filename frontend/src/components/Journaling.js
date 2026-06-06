@@ -4,9 +4,7 @@ import {
   FiClock,
   FiCalendar,
   FiEdit3,
-  FiSmile,
   FiTrendingUp,
-  FiTrash2,
   FiCheckCircle,
   FiAlertCircle,
 } from "react-icons/fi";
@@ -28,29 +26,6 @@ const PROMPTS = [
   "One thing I learned today",
 ];
 
-const MOCK_HISTORY = [
-  {
-    id: 1,
-    date: "28 Feb 2026",
-    mood: "happy",
-    text: "Had a great productive day!",
-    wordCount: 120,
-  },
-  {
-    id: 2,
-    date: "27 Feb 2026",
-    mood: "sad",
-    text: "Felt a bit down due to weather.",
-    wordCount: 95,
-  },
-  {
-    id: 3,
-    date: "26 Feb 2026",
-    mood: "neutral",
-    text: "Just a regular day at work.",
-    wordCount: 140,
-  },
-];
 
 function Journaling({ userId }) {
   const [currentDate, setCurrentDate] = useState(new Date());

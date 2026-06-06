@@ -16,7 +16,7 @@ import "./Dashboard.css";
 
 function Dashboard({ onNavigate, userId, sessionId }) {
   const [insights, setInsights] = useState(null);
-  const [loadingInsights, setLoadingInsights] = useState(false);
+  const [, setLoadingInsights] = useState(false);
 
   useEffect(() => {
     const fetchInsights = async () => {

@@ -25,7 +25,7 @@ function Meditation({ userId }) {
   const [isRunning, setIsRunning] = useState(false);
   const [showMoodModal, setShowMoodModal] = useState(false); // 'before' or 'after' or false
   const [moodBefore, setMoodBefore] = useState(null);
-  const [moodAfter, setMoodAfter] = useState(null);
+  const [, setMoodAfter] = useState(null);
   const [showVideo, setShowVideo] = useState(false);
   const [customMinutes, setCustomMinutes] = useState(10);
   const [streak, setStreak] = useState(0);

@@ -28,7 +28,7 @@ export default function DailyRoutine({ userId }) {
   const [newTime, setNewTime] = useState("");
   const [category, setCategory] = useState("morning");
   const [priority, setPriority] = useState(false);
-  const [fetching, setFetching] = useState(true);
+  const [, setFetching] = useState(true);
   const [toast, setToast] = useState(null);
 
   // Clear toast after 3 seconds

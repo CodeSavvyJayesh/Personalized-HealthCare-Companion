@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import {
   FiTrendingUp,
   FiCalendar,
-  FiEdit3,
-  FiStar,
   FiSmile,
 } from "react-icons/fi";
 import "./MoodTracker.css";
@@ -39,7 +37,7 @@ export default function MoodTracker({ userId }) {
   const [tags, setTags] = useState([]);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
+  const [, setFetching] = useState(true);
   const [toast, setToast] = useState(null);
 
   // Clear toast after 3 seconds
