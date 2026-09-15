@@ -59,6 +59,12 @@ class ChatIn(BaseModel):
     session_id: str
 
 
+class ClassifyIn(BaseModel):
+    """Input to /safety/classify. Not stored anywhere."""
+
+    text: str = Field(min_length=1, max_length=4000)
+
+
 class ChatOut(BaseModel):
     reply: str
     sentiment: str

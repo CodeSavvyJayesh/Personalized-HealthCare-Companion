@@ -1,0 +1,335 @@
+{
+  "dataset": {
+    "path": "crisis_set.jsonl",
+    "examples": 323,
+    "by_label": {
+      "NONE": 120,
+      "DISTRESS": 65,
+      "IDEATION": 63,
+      "IMMINENT": 75
+    },
+    "by_source": {
+      "handwritten": 323
+    },
+    "languages": {
+      "en": 302,
+      "hi-mr-en": 21
+    }
+  },
+  "headline": {
+    "tier3_recall": 0.96,
+    "tier3_missed": 3,
+    "escalation_recall": 0.9493,
+    "false_positive_rate": 0.0,
+    "none_escalated_to_crisis": 0,
+    "exact_tier_accuracy": 0.9659
+  },
+  "per_tier": {
+    "NONE": {
+      "precision": 0.9231,
+      "recall": 1.0,
+      "f1": 0.96,
+      "support": 120
+    },
+    "DISTRESS": {
+      "precision": 1.0,
+      "recall": 0.9385,
+      "f1": 0.9683,
+      "support": 65
+    },
+    "IDEATION": {
+      "precision": 0.9833,
+      "recall": 0.9365,
+      "f1": 0.9593,
+      "support": 63
+    },
+    "IMMINENT": {
+      "precision": 1.0,
+      "recall": 0.96,
+      "f1": 0.9796,
+      "support": 75
+    }
+  },
+  "confusion_matrix": {
+    "NONE": {
+      "NONE": 120,
+      "DISTRESS": 0,
+      "IDEATION": 0,
+      "IMMINENT": 0
+    },
+    "DISTRESS": {
+      "NONE": 3,
+      "DISTRESS": 61,
+      "IDEATION": 1,
+      "IMMINENT": 0
+    },
+    "IDEATION": {
+      "NONE": 4,
+      "DISTRESS": 0,
+      "IDEATION": 59,
+      "IMMINENT": 0
+    },
+    "IMMINENT": {
+      "NONE": 3,
+      "DISTRESS": 0,
+      "IDEATION": 0,
+      "IMMINENT": 72
+    }
+  },
+  "per_category": {
+    "casing": {
+      "total": 5,
+      "correct": 5,
+      "accuracy": 1.0
+    },
+    "code_switch": {
+      "total": 21,
+      "correct": 21,
+      "accuracy": 1.0
+    },
+    "fiction_frame": {
+      "total": 6,
+      "correct": 5,
+      "accuracy": 0.8333
+    },
+    "idiom": {
+      "total": 20,
+      "correct": 20,
+      "accuracy": 1.0
+    },
+    "implicit": {
+      "total": 28,
+      "correct": 27,
+      "accuracy": 0.9643
+    },
+    "near_miss": {
+      "total": 22,
+      "correct": 22,
+      "accuracy": 1.0
+    },
+    "obfuscation": {
+      "total": 12,
+      "correct": 10,
+      "accuracy": 0.8333
+    },
+    "ordinary": {
+      "total": 45,
+      "correct": 45,
+      "accuracy": 1.0
+    },
+    "past_tense": {
+      "total": 4,
+      "correct": 3,
+      "accuracy": 0.75
+    },
+    "plain": {
+      "total": 120,
+      "correct": 117,
+      "accuracy": 0.975
+    },
+    "third_party": {
+      "total": 12,
+      "correct": 9,
+      "accuracy": 0.75
+    },
+    "topical_not_personal": {
+      "total": 20,
+      "correct": 20,
+      "accuracy": 1.0
+    },
+    "trivial": {
+      "total": 8,
+      "correct": 8,
+      "accuracy": 1.0
+    }
+  },
+  "latency_ms": {
+    "mean": 0.138,
+    "p50": 0.1367,
+    "p95": 0.2336,
+    "p99": 0.277,
+    "max": 0.368
+  },
+  "errors": [
+    {
+      "id": "c0034",
+      "text": "e n d   m y   l i f e",
+      "category": "obfuscation",
+      "lang": "en",
+      "expected": "IMMINENT",
+      "predicted": "NONE",
+      "severity": "critical"
+    },
+    {
+      "id": "c0046",
+      "text": "writing an essay where the narrator says goodbye forever everyone",
+      "category": "fiction_frame",
+      "lang": "en",
+      "expected": "IMMINENT",
+      "predicted": "NONE",
+      "severity": "critical"
+    },
+    {
+      "id": "c0058",
+      "text": "don't try to stop me, I've decided",
+      "category": "implicit",
+      "lang": "en",
+      "expected": "IMMINENT",
+      "predicted": "NONE",
+      "severity": "critical"
+    },
+    {
+      "id": "c0087",
+      "text": "I fantasise about not existing",
+      "category": "plain",
+      "lang": "en",
+      "expected": "IDEATION",
+      "predicted": "NONE",
+      "severity": "under_escalation"
+    },
+    {
+      "id": "c0088",
+      "text": "I wonder what it would be like if I just stopped existing",
+      "category": "plain",
+      "lang": "en",
+      "expected": "IDEATION",
+      "predicted": "NONE",
+      "severity": "under_escalation"
+    },
+    {
+      "id": "c0091",
+      "text": "part of me wants to disappear permanently",
+      "category": "plain",
+      "lang": "en",
+      "expected": "IDEATION",
+      "predicted": "NONE",
+      "severity": "under_escalation"
+    },
+    {
+      "id": "c0096",
+      "text": "I w-i-s-h I was dead",
+      "category": "obfuscation",
+      "lang": "en",
+      "expected": "IDEATION",
+      "predicted": "NONE",
+      "severity": "under_escalation"
+    },
+    {
+      "id": "c0146",
+      "text": "my sister told me she wanted to die and I don't know what to do",
+      "category": "third_party",
+      "lang": "en",
+      "expected": "DISTRESS",
+      "predicted": "NONE",
+      "severity": "under_escalation"
+    },
+    {
+      "id": "c0151",
+      "text": "a friend of mine wrote something about ending it and I'm panicking",
+      "category": "third_party",
+      "lang": "en",
+      "expected": "DISTRESS",
+      "predicted": "NONE",
+      "severity": "under_escalation"
+    },
+    {
+      "id": "c0155",
+      "text": "years ago I self-harmed, I've been clean since",
+      "category": "past_tense",
+      "lang": "en",
+      "expected": "DISTRESS",
+      "predicted": "NONE",
+      "severity": "under_escalation"
+    },
+    {
+      "id": "c0293",
+      "text": "my neighbour's son attempted something last year",
+      "category": "third_party",
+      "lang": "en",
+      "expected": "DISTRESS",
+      "predicted": "IDEATION",
+      "severity": "over_escalation"
+    }
+  ],
+  "splits": {
+    "dev": {
+      "examples": 205,
+      "headline": {
+        "tier3_recall": 1.0,
+        "tier3_missed": 0,
+        "escalation_recall": 1.0,
+        "false_positive_rate": 0.0,
+        "none_escalated_to_crisis": 0,
+        "exact_tier_accuracy": 1.0
+      },
+      "per_tier": {
+        "NONE": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 79
+        },
+        "DISTRESS": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 40
+        },
+        "IDEATION": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 38
+        },
+        "IMMINENT": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 48
+        }
+      }
+    },
+    "holdout": {
+      "examples": 118,
+      "headline": {
+        "tier3_recall": 0.8889,
+        "tier3_missed": 3,
+        "escalation_recall": 0.8654,
+        "false_positive_rate": 0.0,
+        "none_escalated_to_crisis": 0,
+        "exact_tier_accuracy": 0.9068
+      },
+      "per_tier": {
+        "NONE": {
+          "precision": 0.8039,
+          "recall": 1.0,
+          "f1": 0.8913,
+          "support": 41
+        },
+        "DISTRESS": {
+          "precision": 1.0,
+          "recall": 0.84,
+          "f1": 0.913,
+          "support": 25
+        },
+        "IDEATION": {
+          "precision": 0.9545,
+          "recall": 0.84,
+          "f1": 0.8936,
+          "support": 25
+        },
+        "IMMINENT": {
+          "precision": 1.0,
+          "recall": 0.8889,
+          "f1": 0.9412,
+          "support": 27
+        }
+      }
+    }
+  },
+  "generalisation_gap": {
+    "tier3_recall": 0.1111,
+    "exact_tier_accuracy": 0.0932,
+    "note": "dev minus holdout; a large positive gap means overfitting"
+  }
+}

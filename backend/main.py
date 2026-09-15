@@ -21,6 +21,7 @@ import memory
 import safety
 import sentiment
 from analytic import router as analytic_router
+from safety_api import router as safety_router
 from auth import (
     REFRESH,
     create_access_token,
@@ -73,16 +74,19 @@ from schemas import (
 )
 from utils import generate_otp, send_otp_email, store_otp, verify_otp
 
+# Root stays at INFO no matter what. DEBUG is opt-in per application logger.
+# Setting the ROOT logger to DEBUG turns on every third-party library at once
+# — pymongo alone then prints a full replica-set heartbeat for all three
+# shards every 10 seconds, which buries the one traceback you need.
 logging.basicConfig(
-    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-# DEBUG should mean "verbose about MY application", not "print a MongoDB
-# heartbeat every 10 seconds". Left unscoped, the driver's chatter buries
-# the one traceback you actually need to see.
-for noisy in ("pymongo", "urllib3", "httpcore", "httpx", "transformers", "filelock"):
-    logging.getLogger(noisy).setLevel(logging.WARNING)
+_app_level = logging.DEBUG if settings.DEBUG else logging.INFO
+for _name in ("mindwell", "main", "auth", "db", "llm", "memory", "safety",
+              "sentiment", "analytic", "utils", "uvicorn.error"):
+    logging.getLogger(_name).setLevel(_app_level)
 
 log = logging.getLogger("mindwell")
 
@@ -124,6 +128,7 @@ app.add_middleware(
 )
 
 app.include_router(analytic_router)
+app.include_router(safety_router)
 
 SYSTEM_PROMPT = """
 You are MindWell, an empathetic, calm, emotionally supportive mental health

@@ -1,0 +1,22 @@
+{
+  "_comment": "A ratchet, not a target. Raise these when the classifier genuinely improves; never lower one to make a red build green. Set just below the measured holdout figures so normal variation doesn't cause flapping, while any real regression fails the build.",
+  "_measured": {
+    "date": "2026-09-15",
+    "holdout_tier3_recall": 0.889,
+    "holdout_accuracy": 0.907,
+    "overall_tier3_recall": 0.96
+  },
+  "holdout": {
+    "min_tier3_recall": 0.85,
+    "min_escalation_recall": 0.80,
+    "max_false_positive_rate": 0.10,
+    "max_none_escalated_to_crisis": 0
+  },
+  "overall": {
+    "min_tier3_recall": 0.92,
+    "min_escalation_recall": 0.90,
+    "max_false_positive_rate": 0.08,
+    "max_none_escalated_to_crisis": 0,
+    "max_p95_latency_ms": 5.0
+  }
+}
