@@ -1,697 +1,786 @@
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-import requests
-import threading
-import time
-import secrets
-from datetime import datetime
+"""MindWell API.
 
-from passlib.context import CryptContext
-from deep_translator import GoogleTranslator
-from transformers import pipeline
+Every data route is authenticated and scoped to the caller. Nothing trusts
+a user_id supplied by the client.
+"""
 
-from db import users_collection, sessions_collection, messages_collection, journals_collection, moods_collection, tasks_collection, meditation_collection, sleep_collection, community_collection, goals_collection
+from __future__ import annotations
+
+import logging
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+
 from bson import ObjectId
-from utils import send_otp_email
+from bson.errors import InvalidId
+from deep_translator import GoogleTranslator
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+
+import llm
+import memory
+import safety
+import sentiment
 from analytic import router as analytic_router
+from auth import (
+    REFRESH,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    get_current_user,
+    hash_password,
+    refresh_is_active,
+    require_owner,
+    revoke_refresh_token,
+    utcnow,
+    verify_password,
+)
+from config import settings
+from db import (
+    community_collection,
+    ensure_indexes,
+    goals_collection,
+    journals_collection,
+    meditation_collection,
+    messages_collection,
+    moods_collection,
+    ping,
+    safety_events_collection,
+    sessions_collection,
+    sleep_collection,
+    tasks_collection,
+    users_collection,
+)
+from ratelimit import limit
+from schemas import (
+    ChatIn,
+    ChatOut,
+    EmailIn,
+    GoalIn,
+    GoalUpdateIn,
+    JournalIn,
+    LoginIn,
+    MoodIn,
+    OkOut,
+    PostIn,
+    RefreshIn,
+    ResetPasswordIn,
+    SignupIn,
+    SleepIn,
+    TaskIn,
+    TaskUpdateIn,
+    TokenOut,
+    VerifyOtpIn,
+)
+from utils import generate_otp, send_otp_email, store_otp, verify_otp
 
-app = FastAPI()
+logging.basicConfig(
+    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
-# ================= SECURITY =================
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-otp_store = {}
+# DEBUG should mean "verbose about MY application", not "print a MongoDB
+# heartbeat every 10 seconds". Left unscoped, the driver's chatter buries
+# the one traceback you actually need to see.
+for noisy in ("pymongo", "urllib3", "httpcore", "httpx", "transformers", "filelock"):
+    logging.getLogger(noisy).setLevel(logging.WARNING)
 
-# ================= CORS =================
+log = logging.getLogger("mindwell")
+
+auth_limit = limit("auth", settings.RATE_LIMIT_AUTH, settings.RATE_LIMIT_WINDOW)
+chat_limit = limit("chat", settings.RATE_LIMIT_CHAT, settings.RATE_LIMIT_WINDOW)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ensure_indexes()
+    # Sentiment is an enhancement, not a dependency. A missing model file or
+    # a torch problem should degrade the dashboard, not stop the API from
+    # serving — including the safety layer, which needs no model at all.
+    try:
+        sentiment.load_model()
+    except Exception as exc:
+        log.warning("Sentiment model unavailable, continuing without it: %s", exc)
+    llm.warm_up()
+    log.info("MindWell API ready (env=%s)", settings.ENV)
+    yield
+
+
+app = FastAPI(
+    title="MindWell API",
+    version="2.0.0",
+    description="Mental health companion API with crisis-aware safety layer.",
+    lifespan=lifespan,
+    docs_url=None if settings.ENV == "production" else "/docs",
+)
+
+# Wildcard origins plus credentials is rejected by browsers anyway and is a
+# CSRF footgun. Origins are now an explicit allowlist from the environment.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(analytic_router)
 
-# ================= AI CONFIG =================
-MODEL_NAME = "llama3:8b"
-OLLAMA_URL = "http://127.0.0.1:11434/v1/chat/completions"
-
-# 🔥 SAME SYSTEM PROMPT (UNCHANGED)
 SYSTEM_PROMPT = """
-You are an empathetic, calm, emotionally supportive mental health companion.
+You are MindWell, an empathetic, calm, emotionally supportive mental health
+companion.
 
-IMPORTANT RESPONSE FORMAT RULES:
-- Always respond in VALID MARKDOWN
-- Use bullet points or numbered lists
-- Use **bold** for headings
-- Add blank lines between paragraphs
-- Keep responses structured and easy to read
+RESPONSE FORMAT:
+- Valid Markdown
+- **Bold** for emphasis, bullets where they help
+- Blank lines between paragraphs
 
-Behavior rules:
-- Acknowledge emotions first
-- No judgment
-- No medical advice
-- Ask ONE gentle follow-up question
-- Keep replies short (2–8 sentences)
+BEHAVIOUR:
+- Acknowledge the emotion before anything else
+- No judgement, no diagnosis, no medical or medication advice
+- You remember what this person has told you earlier in the conversation;
+  refer back to it naturally when it is relevant
+- Ask at most ONE gentle follow-up question
+- Keep replies to 2-8 sentences
 """
 
-# ================= LANGUAGE =================
-LANG_CODE_MAP = {
-    "en-US": "en",
-    "hi-IN": "hi",
-    "mr-IN": "mr",
-}
+LANG_CODE_MAP = {"en-US": "en", "hi-IN": "hi", "mr-IN": "mr"}
 
-# ================= SENTIMENT =================
-print("🔥 Loading Sentiment Model...")
-# sentiment_pipeline = pipeline("sentiment-analysis")
 
-sentiment_pipeline = pipeline(
-    "sentiment-analysis",
-    model="distilbert-base-uncased-finetuned-sst-2-english",
-    local_files_only=True   # 🔥 THIS LINE FIXES YOUR ISSUE
-)
-
-print("✅ Sentiment Model Loaded!")
-
-# ================= MODEL WARMUP =================
-def warm_up_model():
+# ------------------------------------------------------------------ utils
+def _oid(value: str) -> ObjectId:
     try:
-        requests.post(
-            OLLAMA_URL,
-            json={
-                "model": MODEL_NAME,
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": "Hello"}
-                ],
-            },
-            timeout=30
-        )
-        print("✅ LLaMA warmed up")
-    except Exception as e:
-        print("⚠️ Warmup failed:", e)
+        return ObjectId(value)
+    except (InvalidId, TypeError):
+        raise HTTPException(status_code=400, detail="Malformed id")
 
-threading.Thread(target=warm_up_model, daemon=True).start()
 
-# ================= LOGIN (AUTO SESSION CREATE) =================
-@app.post("/login")
-async def login(request: Request):
-    data = await request.json()
-    username = data.get("username")
-    password = data.get("password")
+def _serialise(docs: list[dict]) -> list[dict]:
+    for doc in docs:
+        doc["_id"] = str(doc["_id"])
+    return docs
 
-    user = users_collection.find_one({"username": username})
 
-    if not user or not pwd_context.verify(password, user["password"]):
-        return {"success": False}
+def _own_session(session_id: str, user_id: str) -> dict:
+    session = sessions_collection.find_one({"_id": _oid(session_id)})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not your session")
+    return session
 
-    # 🔥 CREATE SESSION AUTOMATICALLY
-    session = {
-        "user_id": username,
-        "created_at": datetime.utcnow()
-    }
 
-    result = sessions_collection.insert_one(session)
+def _translate(text: str, source: str, target: str) -> str:
+    if source == target:
+        return text
+    try:
+        return GoogleTranslator(source=source, target=target).translate(text)
+    except Exception as exc:
+        log.warning("Translation %s->%s failed: %s", source, target, exc)
+        return text
 
+
+# ----------------------------------------------------------------- health
+@app.get("/health")
+def health() -> dict:
+    db_ok = ping()
     return {
-        "success": True,
-        "user_id": username,
-        "session_id": str(result.inserted_id)
+        "status": "ok" if db_ok else "degraded",
+        "database": "up" if db_ok else "down",
+        "llm": llm.health(),
+        "env": settings.ENV,
     }
 
-# ================= CHAT =================
-@app.get("/chat-history/{session_id}")
-async def get_chat_history(session_id: str):
-    messages = list(messages_collection.find({"session_id": session_id}).sort("timestamp", 1))
-    for m in messages:
-        m["_id"] = str(m["_id"])
-    return {"success": True, "history": messages}
 
-@app.post("/chat")
-async def chat_endpoint(request: Request):
-    data = await request.json()
+# ------------------------------------------------------------------- auth
+@app.post("/signup", response_model=OkOut, dependencies=[Depends(auth_limit)])
+def signup(payload: SignupIn) -> OkOut:
+    if users_collection.find_one({"username": payload.username}):
+        # Same shape as success on purpose — don't let signup be used to
+        # enumerate which email addresses have accounts.
+        raise HTTPException(status_code=409, detail="Could not create account")
+    users_collection.insert_one(
+        {
+            "username": payload.username,
+            "password": hash_password(payload.password),
+            "created_at": utcnow(),
+        }
+    )
+    return OkOut()
 
-    user_text = data.get("text", "").strip()
-    language_code = data.get("language", "en-US")
-    session_id = data.get("session_id")
-    user_id = data.get("user_id")
 
-    source_lang = LANG_CODE_MAP.get(language_code, "en")
+@app.post("/login", response_model=TokenOut, dependencies=[Depends(auth_limit)])
+def login(payload: LoginIn) -> TokenOut:
+    user = users_collection.find_one({"username": payload.username})
+    if not user or not verify_password(payload.password, user.get("password", "")):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password",
+        )
 
-    if not user_text:
-        return {"reply": "I’m here with you 💙 Take your time."}
+    result = sessions_collection.insert_one(
+        {"user_id": payload.username, "created_at": utcnow()}
+    )
+    return TokenOut(
+        access_token=create_access_token(payload.username),
+        refresh_token=create_refresh_token(payload.username),
+        user_id=payload.username,
+        session_id=str(result.inserted_id),
+    )
 
-    # ================= TRANSLATE =================
-    user_text_en = user_text
-    if source_lang != "en":
-        user_text_en = GoogleTranslator(
-            source=source_lang, target="en"
-        ).translate(user_text)
 
-    # ================= SENTIMENT =================
-    sentiment_result = sentiment_pipeline(user_text_en)[0]
-    sentiment_label = sentiment_result["label"]
-
-    # ================= STORE USER =================
-    user_msg_doc = {
-        "session_id": session_id,
-        "user_id": user_id,
-        "sender": "user",
-        "text": user_text,
-        "sentiment": sentiment_label,
-        "timestamp": datetime.utcnow()
-    }
-    messages_collection.insert_one(user_msg_doc)
-
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_text_en},
-        ],
-        "temperature": 0.8,
-        "top_p": 0.9,
+@app.post("/auth/refresh", dependencies=[Depends(auth_limit)])
+def refresh(payload: RefreshIn) -> dict:
+    claims = decode_token(payload.refresh_token, REFRESH)
+    if not refresh_is_active(claims["jti"]):
+        raise HTTPException(status_code=401, detail="Refresh token revoked")
+    return {
+        "access_token": create_access_token(claims["sub"]),
+        "token_type": "bearer",
     }
 
+
+@app.post("/auth/logout", response_model=OkOut)
+def logout(payload: RefreshIn, _: str = Depends(get_current_user)) -> OkOut:
     try:
-        response = requests.post(OLLAMA_URL, json=payload, timeout=60)
-        response.raise_for_status()
+        claims = decode_token(payload.refresh_token, REFRESH)
+        revoke_refresh_token(claims["jti"])
+    except HTTPException:
+        pass
+    return OkOut()
 
-        result = response.json()
-        bot_reply_en = result["choices"][0]["message"]["content"]
 
-        # ================= TRANSLATE BACK =================
-        final_reply = bot_reply_en
-        if source_lang != "en":
-            final_reply = GoogleTranslator(
-                source="en", target=source_lang
-            ).translate(bot_reply_en)
+@app.get("/auth/me")
+def me(current_user: str = Depends(get_current_user)) -> dict:
+    return {"user_id": current_user}
 
-        # ================= STORE BOT =================
-        bot_msg_doc = {
-            "session_id": session_id,
-            "user_id": user_id,
+
+# -------------------------------------------------------------------- otp
+@app.post("/send-otp", response_model=OkOut, dependencies=[Depends(auth_limit)])
+def send_otp(payload: EmailIn) -> OkOut:
+    otp = generate_otp()
+    store_otp(payload.email, otp)
+    send_otp_email(payload.email, otp)
+    return OkOut()
+
+
+@app.post("/verify-otp", response_model=OkOut, dependencies=[Depends(auth_limit)])
+def verify_signup_otp(payload: VerifyOtpIn) -> OkOut:
+    if not verify_otp(payload.email, payload.otp):
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    # Previously this inserted unconditionally, so verifying twice created a
+    # duplicate account for the same email.
+    users_collection.update_one(
+        {"username": payload.email},
+        {
+            "$set": {"password": hash_password(payload.password)},
+            "$setOnInsert": {"username": payload.email, "created_at": utcnow()},
+        },
+        upsert=True,
+    )
+    return OkOut()
+
+
+@app.post("/send-reset-otp", response_model=OkOut, dependencies=[Depends(auth_limit)])
+def send_reset_otp(payload: EmailIn) -> OkOut:
+    if users_collection.find_one({"username": payload.email}):
+        otp = generate_otp()
+        store_otp(payload.email, otp)
+        send_otp_email(payload.email, otp)
+    # Always report success: a different answer for unknown emails is an
+    # account enumeration oracle.
+    return OkOut()
+
+
+@app.post("/reset-password", response_model=OkOut, dependencies=[Depends(auth_limit)])
+def reset_password(payload: ResetPasswordIn) -> OkOut:
+    if not verify_otp(payload.email, payload.otp):
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    users_collection.update_one(
+        {"username": payload.email},
+        {"$set": {"password": hash_password(payload.new_password)}},
+    )
+    return OkOut()
+
+
+# ------------------------------------------------------------------- chat
+@app.get("/chat-history/{session_id}")
+def chat_history(session_id: str, current_user: str = Depends(get_current_user)):
+    _own_session(session_id, current_user)
+    history = list(
+        messages_collection.find({"session_id": session_id}).sort("timestamp", 1)
+    )
+    return {"success": True, "history": _serialise(history)}
+
+
+@app.post("/chat", response_model=ChatOut, dependencies=[Depends(chat_limit)])
+def chat_endpoint(
+    payload: ChatIn, current_user: str = Depends(get_current_user)
+) -> ChatOut:
+    _own_session(payload.session_id, current_user)
+
+    source_lang = LANG_CODE_MAP.get(payload.language, "en")
+    user_text = payload.text.strip()
+    user_text_en = _translate(user_text, source_lang, "en")
+
+    # ---- 1. SAFETY FIRST, before sentiment, before the model ----------
+    assessment = safety.assess_risk(f"{user_text}\n{user_text_en}")
+
+    label, confidence = sentiment.classify(user_text_en)
+
+    messages_collection.insert_one(
+        {
+            "session_id": payload.session_id,
+            "user_id": current_user,
+            "sender": "user",
+            "text": user_text,
+            "sentiment": label,
+            "sentiment_confidence": confidence,
+            "risk_tier": int(assessment.tier),
+            "timestamp": utcnow(),
+        }
+    )
+
+    resources_shown = False
+
+    if assessment.blocks_llm:
+        # Deterministic path. The model is not consulted at all.
+        reply = safety.crisis_response(settings.CRISIS_REGION)
+        resources_shown = True
+        safety.log_safety_event(
+            safety_events_collection,
+            user_id=current_user,
+            session_id=payload.session_id,
+            assessment=assessment,
+            action="llm_bypassed_crisis_response",
+            text_length=len(user_text),
+        )
+    else:
+        history = list(
+            messages_collection.find(
+                {"session_id": payload.session_id}, {"sender": 1, "text": 1}
+            ).sort("timestamp", 1)
+        )[:-1]
+
+        summary = memory.load_summary(sessions_collection, payload.session_id)
+        summary = memory.maybe_summarise(
+            sessions_collection, payload.session_id, history, summary
+        )
+
+        system_prompt = SYSTEM_PROMPT
+        if assessment.tier >= safety.RiskTier.IDEATION:
+            system_prompt = f"{SYSTEM_PROMPT}\n{safety.SAFE_MODE_PROMPT}"
+
+        model_messages = memory.build_messages(
+            system_prompt, history, user_text_en, summary
+        )
+
+        try:
+            reply_en = llm.chat(model_messages, temperature=0.8)
+            reply = _translate(reply_en, "en", source_lang)
+        except llm.LLMUnavailable:
+            reply = (
+                "I'm having trouble thinking clearly right now — that's on my "
+                "end, not yours. 💙 I'm still here. Could you tell me a little "
+                "more about how you're feeling?"
+            )
+
+        if assessment.needs_resources:
+            reply = safety.append_resources(reply, settings.CRISIS_REGION)
+            resources_shown = True
+            safety.log_safety_event(
+                safety_events_collection,
+                user_id=current_user,
+                session_id=payload.session_id,
+                assessment=assessment,
+                action="resources_appended",
+                text_length=len(user_text),
+            )
+
+    messages_collection.insert_one(
+        {
+            "session_id": payload.session_id,
+            "user_id": current_user,
             "sender": "bot",
-            "text": final_reply,
-            "timestamp": datetime.utcnow()
+            "text": reply,
+            "risk_tier": int(assessment.tier),
+            "timestamp": utcnow(),
         }
-        messages_collection.insert_one(bot_msg_doc)
+    )
 
-        return {
-            "reply": final_reply,
-            "sentiment": sentiment_label,
-            "user_message": {
-                "text": user_text,
-                "sender": "user",
-                "sentiment": sentiment_label,
-                "session_id": session_id,
-                "user_id": user_id
-            },
-            "bot_message": {
-                "text": final_reply,
-                "sender": "bot",
-                "session_id": session_id,
-                "user_id": user_id
-            }
-        }
+    return ChatOut(
+        reply=reply,
+        sentiment=label,
+        risk_tier=assessment.tier.name,
+        resources_shown=resources_shown,
+        session_id=payload.session_id,
+    )
 
-    except Exception as e:
-        print("❌ Chat error:", e)
-        error_reply = "I am having trouble right now 💙"
-        
-        # ================= STORE BOT ERROR =================
-        bot_error_doc = {
-            "session_id": session_id,
-            "user_id": user_id,
-            "sender": "bot",
-            "text": error_reply,
-            "timestamp": datetime.utcnow()
-        }
-        messages_collection.insert_one(bot_error_doc)
-        
-        return {
-            "reply": error_reply,
-            "sentiment": sentiment_label,
-            "user_message": {
-                "text": user_text,
-                "sender": "user",
-                "sentiment": sentiment_label,
-                "session_id": session_id,
-                "user_id": user_id
-            },
-            "bot_message": {
-                "text": error_reply,
-                "sender": "bot",
-                "session_id": session_id,
-                "user_id": user_id
-            }
-        }
 
-# ================= REPORT API =================
 @app.get("/session-report/{session_id}")
-async def generate_report(session_id: str):
-
+def session_report(session_id: str, current_user: str = Depends(get_current_user)):
+    _own_session(session_id, current_user)
     messages = list(messages_collection.find({"session_id": session_id}))
 
-    positive = 0
-    negative = 0
-    neutral = 0
-
+    counts = {"POSITIVE": 0, "NEGATIVE": 0, "NEUTRAL": 0}
     for msg in messages:
-        sentiment = msg.get("sentiment")
+        if msg.get("sender") != "user":
+            continue  # only the user's own words carry their mood
+        counts[(msg.get("sentiment") or "NEUTRAL").upper()] = counts.get(
+            (msg.get("sentiment") or "NEUTRAL").upper(), 0
+        ) + 1
 
-        if sentiment == "POSITIVE":
-            positive += 1
-        elif sentiment == "NEGATIVE":
-            negative += 1
-        else:
-            neutral += 1
-
-    total = positive + negative + neutral
-
+    total = sum(counts.values())
     if total == 0:
-        return {"message": "No data available"}
+        return {
+            "total_messages": 0,
+            "positive": 0,
+            "negative": 0,
+            "neutral": 0,
+            "overall_mood": "NEUTRAL",
+            "sentiment_summary": {"Positive": 0, "Negative": 0, "Neutral": 0},
+            "insight_message": "Say hello whenever you're ready — there's no rush.",
+        }
 
     overall = "NEUTRAL"
-    if negative > positive:
+    if counts["NEGATIVE"] > counts["POSITIVE"]:
         overall = "NEGATIVE"
-    elif positive > negative:
+    elif counts["POSITIVE"] > counts["NEGATIVE"]:
         overall = "POSITIVE"
 
-    # Generate a simple insight message based on overall mood
-    insight_message = "You've had a balanced session today. Keep up the good work!"
-    if overall == "POSITIVE":
-        insight_message = "Your session reflects a lot of positivity! It's great to see you feeling well."
-    elif overall == "NEGATIVE":
-        insight_message = "It seems you've been dealing with some difficult emotions. Remember to be kind to yourself and take things one step at a time."
+    insight = {
+        "POSITIVE": "Your session reflects a lot of positivity. Good to see you feeling well.",
+        "NEGATIVE": "It seems you've been sitting with some difficult emotions. Be kind to yourself — one step at a time.",
+        "NEUTRAL": "You've had a balanced session today.",
+    }[overall]
 
     return {
         "total_messages": total,
-        "positive": positive,
-        "negative": negative,
-        "neutral": neutral,
+        "positive": counts["POSITIVE"],
+        "negative": counts["NEGATIVE"],
+        "neutral": counts["NEUTRAL"],
         "overall_mood": overall,
         "sentiment_summary": {
-            "Positive": positive,
-            "Negative": negative,
-            "Neutral": neutral
+            "Positive": counts["POSITIVE"],
+            "Negative": counts["NEGATIVE"],
+            "Neutral": counts["NEUTRAL"],
         },
-        "insight_message": insight_message
+        "insight_message": insight,
     }
 
-# ================= JOURNAL =================
+
+# ---------------------------------------------------------------- journal
 @app.post("/journal")
-async def create_journal(request: Request):
-    data = await request.json()
-    user_id = data.get("user_id")
-    mood = data.get("mood")
-    content = data.get("content")
-
-    if not user_id or not content:
-        return {"success": False, "message": "Missing fields"}
-
-    journal = {
-        "user_id": user_id,
-        "mood": mood,
-        "content": content,
-        "created_at": datetime.utcnow()
-    }
-    result = journals_collection.insert_one(journal)
+def create_journal(payload: JournalIn, current_user: str = Depends(get_current_user)):
+    result = journals_collection.insert_one(
+        {
+            "user_id": current_user,
+            "mood": payload.mood,
+            "content": payload.content,
+            "created_at": utcnow(),
+        }
+    )
     return {"success": True, "journal_id": str(result.inserted_id)}
 
+
 @app.get("/journals/{user_id}")
-async def get_journals(user_id: str):
-    journals = list(journals_collection.find({"user_id": user_id}).sort("created_at", -1))
-    for j in journals:
-        j["_id"] = str(j["_id"])
-    return {"success": True, "journals": journals}
+def get_journals(owner: str = Depends(require_owner)):
+    docs = list(
+        journals_collection.find({"user_id": owner}).sort("created_at", -1)
+    )
+    return {"success": True, "journals": _serialise(docs)}
 
-# ================= MOOD TRACKER =================
+
+# ------------------------------------------------------------------ moods
 @app.post("/mood")
-async def create_mood(request: Request):
-    data = await request.json()
-    user_id = data.get("user_id")
-    mood = data.get("mood")
-    intensity = data.get("intensity")
-    energy = data.get("energy")
-    tags = data.get("tags", [])
-
-    if not user_id or not mood:
-        return {"success": False, "message": "Missing fields"}
-
-    mood_entry = {
-        "user_id": user_id,
-        "mood": mood,
-        "intensity": intensity,
-        "energy": energy,
-        "tags": tags,
-        "created_at": datetime.utcnow()
-    }
-    result = moods_collection.insert_one(mood_entry)
+def create_mood(payload: MoodIn, current_user: str = Depends(get_current_user)):
+    result = moods_collection.insert_one(
+        {
+            "user_id": current_user,
+            "mood": payload.mood,
+            "intensity": payload.intensity,
+            "energy": payload.energy,
+            "tags": payload.tags,
+            "created_at": utcnow(),
+        }
+    )
     return {"success": True, "mood_id": str(result.inserted_id)}
 
+
 @app.get("/moods/{user_id}")
-async def get_moods(user_id: str):
-    moods = list(moods_collection.find({"user_id": user_id}).sort("created_at", -1))
-    for m in moods:
-        m["_id"] = str(m["_id"])
-    return {"success": True, "moods": moods}
+def get_moods(owner: str = Depends(require_owner)):
+    docs = list(moods_collection.find({"user_id": owner}).sort("created_at", -1))
+    return {"success": True, "moods": _serialise(docs)}
 
-# ================= ROUTINE / TASKS =================
+
+# ------------------------------------------------------------------ tasks
 @app.post("/tasks")
-async def create_task(request: Request):
-    data = await request.json()
-    user_id = data.get("user_id")
-    title = data.get("title")
-    category = data.get("category")
-
-    if not user_id or not title:
-        return {"success": False, "message": "Missing fields"}
-
-    task = {
-        "user_id": user_id,
-        "title": title,
-        "category": category,
-        "completed": False,
-        "created_at": datetime.utcnow()
-    }
-    result = tasks_collection.insert_one(task)
+def create_task(payload: TaskIn, current_user: str = Depends(get_current_user)):
+    result = tasks_collection.insert_one(
+        {
+            "user_id": current_user,
+            "title": payload.title,
+            "category": payload.category,
+            "completed": False,
+            "created_at": utcnow(),
+        }
+    )
     return {"success": True, "task_id": str(result.inserted_id)}
 
+
 @app.get("/tasks/{user_id}")
-async def get_tasks(user_id: str):
-    tasks = list(tasks_collection.find({"user_id": user_id}).sort("created_at", -1))
-    for t in tasks:
-        t["_id"] = str(t["_id"])
-    return {"success": True, "tasks": tasks}
+def get_tasks(owner: str = Depends(require_owner)):
+    docs = list(tasks_collection.find({"user_id": owner}).sort("created_at", -1))
+    return {"success": True, "tasks": _serialise(docs)}
+
 
 @app.put("/tasks/{task_id}")
-async def update_task(task_id: str, request: Request):
-    data = await request.json()
-    completed = data.get("completed")
-
-    tasks_collection.update_one(
-        {"_id": ObjectId(task_id)},
-        {"$set": {"completed": completed}}
+def update_task(
+    task_id: str,
+    payload: TaskUpdateIn,
+    current_user: str = Depends(get_current_user),
+):
+    # The ownership filter is part of the query, so another user's task id
+    # simply matches nothing.
+    result = tasks_collection.update_one(
+        {"_id": _oid(task_id), "user_id": current_user},
+        {"$set": {"completed": payload.completed, "updated_at": utcnow()}},
     )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
     return {"success": True}
+
 
 @app.put("/tasks/{task_id}/complete")
-async def complete_task(task_id: str):
+def complete_task(task_id: str, current_user: str = Depends(get_current_user)):
     result = tasks_collection.update_one(
-        {"_id": ObjectId(task_id)},
-        {"$set": {"completed": True}}
+        {"_id": _oid(task_id), "user_id": current_user},
+        {"$set": {"completed": True, "updated_at": utcnow()}},
     )
-
-    if result.modified_count == 1:
-        return {"success": True}
-    return {"success": False}
-
-# ================= MEDITATION =================
-@app.post("/meditation")
-async def record_meditation(request: Request):
-    data = await request.json()
-    user_id = data.get("user_id")
-    
-    if not user_id:
-        return {"success": False, "message": "Missing user_id"}
-
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    
-    # Check if already recorded today
-    existing = meditation_collection.find_one({"user_id": user_id, "date": today})
-    if not existing:
-        meditation_collection.insert_one({
-            "user_id": user_id,
-            "date": today,
-            "completed": True,
-            "created_at": datetime.utcnow()
-        })
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
     return {"success": True}
 
-@app.get("/meditation/{user_id}")
-async def get_meditation(user_id: str):
-    sessions = list(meditation_collection.find({"user_id": user_id}).sort("date", 1))
-    
-    total_sessions = len(sessions)
-    current_streak = 0
-    longest_streak = 0
-    
-    if total_sessions > 0:
-        # Calculate streaks
-        dates = sorted(list(set([s["date"] for s in sessions])))
-        streak = 1
-        longest = 1
-        for i in range(1, len(dates)):
-            d1 = datetime.strptime(dates[i-1], "%Y-%m-%d")
-            d2 = datetime.strptime(dates[i], "%Y-%m-%d")
-            if (d2 - d1).days == 1:
-                streak += 1
-                longest = max(longest, streak)
-            else:
-                streak = 1
-        
-        # Check if current streak is active (today or yesterday)
-        last_date = datetime.strptime(dates[-1], "%Y-%m-%d")
-        today = datetime.utcnow()
-        if (today - last_date).days <= 1:
-            current_streak = streak
-        else:
-            current_streak = 0
-        longest_streak = longest
 
-    # Determine suggested session based on recent mood
-    suggested_session = "focus meditation" # Default
-    recent_mood = moods_collection.find_one({"user_id": user_id}, sort=[("created_at", -1)])
-    
-    if recent_mood:
-        mood_val = recent_mood.get("mood", "").lower()
-        if mood_val in ["sad", "anxious", "stressed", "angry", "overwhelmed", "negative"]:
-            suggested_session = "breathing / calming"
-        elif mood_val in ["happy", "excited", "grateful", "positive"]:
-            suggested_session = "gratitude meditation"
-        else:
-            suggested_session = "focus meditation"
+# ------------------------------------------------------------- meditation
+@app.post("/meditation")
+def record_meditation(current_user: str = Depends(get_current_user)):
+    today = utcnow().strftime("%Y-%m-%d")
+    meditation_collection.update_one(
+        {"user_id": current_user, "date": today},
+        {"$setOnInsert": {"completed": True, "created_at": utcnow()}},
+        upsert=True,
+    )
+    return {"success": True}
+
+
+def _streaks(dates: list[str]) -> tuple[int, int]:
+    """Returns (current_streak, longest_streak).
+
+    The old version tracked `longest` inside the loop but reset `streak`
+    without re-checking the max, so a long early streak followed by a short
+    recent one reported the short one.
+    """
+    if not dates:
+        return 0, 0
+    unique = sorted(set(dates))
+    longest = run = 1
+    for i in range(1, len(unique)):
+        prev = datetime.strptime(unique[i - 1], "%Y-%m-%d")
+        curr = datetime.strptime(unique[i], "%Y-%m-%d")
+        run = run + 1 if (curr - prev).days == 1 else 1
+        longest = max(longest, run)
+
+    last = datetime.strptime(unique[-1], "%Y-%m-%d").date()
+    today = utcnow().date()
+    current = run if (today - last) <= timedelta(days=1) else 0
+    return current, longest
+
+
+@app.get("/meditation/{user_id}")
+def get_meditation(owner: str = Depends(require_owner)):
+    sessions = list(meditation_collection.find({"user_id": owner}).sort("date", 1))
+    current, longest = _streaks([s["date"] for s in sessions])
+
+    suggested = "focus meditation"
+    recent = moods_collection.find_one({"user_id": owner}, sort=[("created_at", -1)])
+    if recent:
+        mood = (recent.get("mood") or "").lower()
+        if mood in {"sad", "anxious", "stressed", "angry", "overwhelmed", "negative"}:
+            suggested = "breathing / calming"
+        elif mood in {"happy", "excited", "grateful", "positive"}:
+            suggested = "gratitude meditation"
 
     return {
         "success": True,
-        "current_streak": current_streak,
-        "longest_streak": longest_streak,
-        "total_sessions": total_sessions,
-        "suggested_session": suggested_session
+        "current_streak": current,
+        "longest_streak": longest,
+        "total_sessions": len(sessions),
+        "suggested_session": suggested,
     }
 
-# ================= SLEEP HEALTH =================
+
+# ------------------------------------------------------------------ sleep
 @app.post("/sleep")
-async def record_sleep(request: Request):
-    data = await request.json()
-    user_id = data.get("user_id")
-    bed_time = data.get("bed_time")
-    wake_time = data.get("wake_time")
-    quality = data.get("quality")
-
-    if not user_id or not bed_time or not wake_time:
-        return {"success": False, "message": "Missing fields"}
-
-    sleep_record = {
-        "user_id": user_id,
-        "bed_time": bed_time,
-        "wake_time": wake_time,
-        "quality": quality,
-        "created_at": datetime.utcnow()
-    }
-    result = sleep_collection.insert_one(sleep_record)
+def record_sleep(payload: SleepIn, current_user: str = Depends(get_current_user)):
+    result = sleep_collection.insert_one(
+        {
+            "user_id": current_user,
+            "bed_time": payload.bed_time,
+            "wake_time": payload.wake_time,
+            "quality": payload.quality,
+            "created_at": utcnow(),
+        }
+    )
     return {"success": True, "sleep_id": str(result.inserted_id)}
 
+
 @app.get("/sleep/{user_id}")
-async def get_sleep(user_id: str):
-    records = list(sleep_collection.find({"user_id": user_id}).sort("created_at", -1))
-    for r in records:
-        r["_id"] = str(r["_id"])
-    return {"success": True, "sleep_records": records}
+def get_sleep(owner: str = Depends(require_owner)):
+    docs = list(sleep_collection.find({"user_id": owner}).sort("created_at", -1))
+    return {"success": True, "sleep_records": _serialise(docs)}
 
-# ================= COMMUNITY =================
+
+# -------------------------------------------------------------- community
 @app.post("/community/posts")
-async def create_post(request: Request):
-    data = await request.json()
-    user_id = data.get("user_id")
-    content = data.get("content")
+def create_post(payload: PostIn, current_user: str = Depends(get_current_user)):
+    # A public wall inside a mental health app is exactly where a crisis
+    # post lands. Route it the same way the chat does.
+    assessment = safety.assess_risk(payload.content)
+    if assessment.blocks_llm:
+        safety.log_safety_event(
+            safety_events_collection,
+            user_id=current_user,
+            session_id=None,
+            assessment=assessment,
+            action="community_post_intercepted",
+            text_length=len(payload.content),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS,
+            detail=safety.crisis_response(settings.CRISIS_REGION),
+        )
 
-    if not user_id or not content:
-        return {"success": False, "message": "Missing fields"}
-
-    post = {
-        "user_id": user_id,
-        "content": content,
-        "likes": [],
-        "created_at": datetime.utcnow()
-    }
-    result = community_collection.insert_one(post)
+    result = community_collection.insert_one(
+        {
+            "user_id": current_user,
+            "content": payload.content,
+            "likes": [],
+            "created_at": utcnow(),
+        }
+    )
     return {"success": True, "post_id": str(result.inserted_id)}
 
+
 @app.get("/community/posts")
-async def get_posts():
+def get_posts(current_user: str = Depends(get_current_user)):
     posts = list(community_collection.find().sort("created_at", -1).limit(50))
-    for p in posts:
-        p["_id"] = str(p["_id"])
+    for post in posts:
+        post["_id"] = str(post["_id"])
+        post["like_count"] = len(post.get("likes", []))
+        post["liked_by_me"] = current_user in post.get("likes", [])
+        # Never ship the full like roster — it leaks who else uses the app.
+        post.pop("likes", None)
+        # Pseudonymise authors; the wall is meant to be anonymous.
+        post["author"] = (
+            "You" if post["user_id"] == current_user else f"Member {abs(hash(post['user_id'])) % 9000 + 1000}"
+        )
+        post.pop("user_id", None)
     return {"success": True, "posts": posts}
 
+
 @app.post("/community/posts/{post_id}/like")
-async def like_post(post_id: str, request: Request):
-    data = await request.json()
-    user_id = data.get("user_id")
-
-    if not user_id:
-        return {"success": False, "message": "Missing user_id"}
-
-    post = community_collection.find_one({"_id": ObjectId(post_id)})
+def like_post(post_id: str, current_user: str = Depends(get_current_user)):
+    post = community_collection.find_one({"_id": _oid(post_id)})
     if not post:
-        return {"success": False, "message": "Post not found"}
+        raise HTTPException(status_code=404, detail="Post not found")
 
-    if user_id in post.get("likes", []):
-        # Unlike
-        community_collection.update_one(
-            {"_id": ObjectId(post_id)},
-            {"$pull": {"likes": user_id}}
-        )
-    else:
-        # Like
-        community_collection.update_one(
-            {"_id": ObjectId(post_id)},
-            {"$addToSet": {"likes": user_id}}
-        )
-
+    operator = "$pull" if current_user in post.get("likes", []) else "$addToSet"
+    community_collection.update_one(
+        {"_id": _oid(post_id)}, {operator: {"likes": current_user}}
+    )
     return {"success": True}
 
-# ================= GOALS =================
+
+# ------------------------------------------------------------------ goals
 @app.post("/goals")
-async def create_goal(request: Request):
-    data = await request.json()
-    user_id = data.get("user_id")
-    title = data.get("title")
-    category = data.get("category")
-
-    if not user_id or not title:
-        return {"success": False, "message": "Missing fields"}
-
-    goal = {
-        "user_id": user_id,
-        "title": title,
-        "category": category,
-        "completed": False,
-        "created_at": datetime.utcnow()
-    }
-    result = goals_collection.insert_one(goal)
+def create_goal(payload: GoalIn, current_user: str = Depends(get_current_user)):
+    result = goals_collection.insert_one(
+        {
+            "user_id": current_user,
+            "title": payload.title,
+            "category": payload.category,
+            "completed": False,
+            "created_at": utcnow(),
+        }
+    )
     return {"success": True, "goal_id": str(result.inserted_id)}
 
+
 @app.get("/goals/{user_id}")
-async def get_goals(user_id: str):
-    goals = list(goals_collection.find({"user_id": user_id}).sort("created_at", -1))
-    for g in goals:
-        g["_id"] = str(g["_id"])
-    return {"success": True, "goals": goals}
+def get_goals(owner: str = Depends(require_owner)):
+    docs = list(goals_collection.find({"user_id": owner}).sort("created_at", -1))
+    return {"success": True, "goals": _serialise(docs)}
+
 
 @app.put("/goals/{goal_id}")
-async def update_goal(goal_id: str, request: Request):
-    data = await request.json()
-    completed = data.get("completed")
-
-    goals_collection.update_one(
-        {"_id": ObjectId(goal_id)},
-        {"$set": {"completed": completed}}
+def update_goal(
+    goal_id: str,
+    payload: GoalUpdateIn,
+    current_user: str = Depends(get_current_user),
+):
+    result = goals_collection.update_one(
+        {"_id": _oid(goal_id), "user_id": current_user},
+        {"$set": {"completed": payload.completed, "updated_at": utcnow()}},
     )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Goal not found")
     return {"success": True}
+
 
 @app.delete("/goals/{goal_id}")
-async def delete_goal(goal_id: str):
-    goals_collection.delete_one({"_id": ObjectId(goal_id)})
-    return {"success": True}
-
-# ================= AUTH =================
-@app.post("/signup")
-async def signup(request: Request):
-    data = await request.json()
-    username = data.get("username")
-    password = data.get("password")
-
-    if users_collection.find_one({"username": username}):
-        return {"success": False}
-
-    users_collection.insert_one({
-        "username": username,
-        "password": pwd_context.hash(password),
-    })
-
-    return {"success": True}
-
-# ================= OTP =================
-@app.post("/send-otp")
-async def send_otp(request: Request):
-    data = await request.json()
-    email = data.get("email")
-
-    otp = str(secrets.randbelow(1000000)).zfill(6)
-    otp_store[email] = {"otp": otp, "time": time.time()}
-
-    await send_otp_email(email, otp)
-    return {"success": True}
-
-@app.post("/verify-otp")
-async def verify_otp(request: Request):
-    data = await request.json()
-    email = data.get("email")
-    otp = data.get("otp")
-    password = data.get("password")
-
-    record = otp_store.get(email)
-
-    if not record or record["otp"] != otp:
-        return {"success": False}
-
-    if time.time() - record["time"] > 300:
-        return {"success": False}
-
-    users_collection.insert_one({
-        "username": email,
-        "password": pwd_context.hash(password),
-    })
-
-    del otp_store[email]
-    return {"success": True}
-
-@app.post("/send-reset-otp")
-async def send_reset_otp(request: Request):
-    data = await request.json()
-    email = data.get("email")
-
-    user = users_collection.find_one({"username": email})
-    if not user:
-        return {"success": False, "message": "User not found"}
-
-    otp = str(secrets.randbelow(1000000)).zfill(6)
-    otp_store[email] = {"otp": otp, "time": time.time()}
-
-    await send_otp_email(email, otp)
-    return {"success": True}
-
-@app.post("/reset-password")
-async def reset_password(request: Request):
-    data = await request.json()
-    email = data.get("email")
-    otp = data.get("otp")
-    new_password = data.get("new_password")
-
-    record = otp_store.get(email)
-    if not record or record["otp"] != otp:
-        return {"success": False, "message": "Invalid OTP"}
-
-    if time.time() - record["time"] > 300:
-        return {"success": False, "message": "OTP expired"}
-
-    users_collection.update_one(
-        {"username": email},
-        {"$set": {"password": pwd_context.hash(new_password)}}
+def delete_goal(goal_id: str, current_user: str = Depends(get_current_user)):
+    result = goals_collection.delete_one(
+        {"_id": _oid(goal_id), "user_id": current_user}
     )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return {"success": True}
 
-    del otp_store[email]
+
+# --------------------------------------------------------------- privacy
+@app.get("/me/export")
+def export_my_data(current_user: str = Depends(get_current_user)):
+    """Data portability. For an app holding mental health records this is
+    not a nice-to-have — it's the DPDP Act / GDPR baseline."""
+    def dump(collection):
+        return _serialise(list(collection.find({"user_id": current_user})))
+
+    return {
+        "user_id": current_user,
+        "exported_at": utcnow().isoformat(),
+        "messages": dump(messages_collection),
+        "journals": dump(journals_collection),
+        "moods": dump(moods_collection),
+        "tasks": dump(tasks_collection),
+        "goals": dump(goals_collection),
+        "sleep": dump(sleep_collection),
+        "meditation": dump(meditation_collection),
+    }
+
+
+@app.delete("/me", response_model=OkOut)
+def delete_my_account(current_user: str = Depends(get_current_user)) -> OkOut:
+    for collection in (
+        messages_collection,
+        journals_collection,
+        moods_collection,
+        tasks_collection,
+        goals_collection,
+        sleep_collection,
+        meditation_collection,
+        sessions_collection,
+        community_collection,
+    ):
+        collection.delete_many({"user_id": current_user})
+    users_collection.delete_one({"username": current_user})
+    return OkOut()

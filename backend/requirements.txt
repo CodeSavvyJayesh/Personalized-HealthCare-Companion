@@ -1,0 +1,25 @@
+# Floors, not hard pins. Hard-pinning torch/transformers breaks on newer
+# Python versions the moment a wheel isn't published for that interpreter
+# (torch 2.5.1 has no cp313 wheel, for example). These resolve on 3.11-3.13
+# and leave an already-working install alone.
+
+fastapi>=0.115
+uvicorn[standard]>=0.34
+pydantic[email]>=2.10
+python-dotenv>=1.0
+
+pymongo>=4.10
+dnspython>=2.7
+
+# passlib 1.7.4 reads bcrypt.__about__.__version__, which bcrypt removed in
+# 4.1. Keep bcrypt below that or login raises a version-detection error.
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]>=3.3
+
+requests>=2.32
+deep-translator>=1.11
+
+transformers>=4.47
+torch>=2.6
+safetensors>=0.4

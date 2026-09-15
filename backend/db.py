@@ -1,36 +1,55 @@
-import dns.resolver
+"""MongoDB connection and index setup.
 
-dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
-dns.resolver.default_resolver.nameservers = ["8.8.8.8"]
+No credentials live here. The URI comes from MONGO_URI in the environment.
+"""
 
-from pymongo import MongoClient
+import logging
 
-MONGO_URI = "mongodb+srv://jayeshdhamal03:jayeshdhamal003@cluster01.k7got.mongodb.net/?retryWrites=true&w=majority&appName=Cluster01"
+from pymongo import ASCENDING, DESCENDING, MongoClient
 
-client = MongoClient(MONGO_URI)
+from config import settings
 
-db = client["health_app"]
+log = logging.getLogger(__name__)
 
-# Existing
+
+def _configure_dns() -> None:
+    """Point dnspython at a public resolver for SRV lookups.
+
+    A mongodb+srv:// URI needs an SRV record. Plenty of home routers and
+    corporate resolvers simply don't return them, and the failure surfaces
+    as a confusing "DNS query name does not exist" at import time.
+    """
+    if not settings.DNS_NAMESERVERS:
+        return
+    try:
+        import dns.resolver
+
+        resolver = dns.resolver.Resolver(configure=False)
+        resolver.nameservers = settings.DNS_NAMESERVERS
+        resolver.lifetime = 10
+        dns.resolver.default_resolver = resolver
+        log.info("DNS resolver set to %s", ", ".join(settings.DNS_NAMESERVERS))
+    except Exception as exc:
+        log.warning("Could not override DNS resolver: %s", exc)
+
+
+_configure_dns()
+
+# connect=False defers the handshake to the first real query, so a database
+# that is slow or unreachable can't stop the process from starting. /health
+# reports the actual state.
+client = MongoClient(
+    settings.MONGO_URI,
+    serverSelectionTimeoutMS=8000,
+    connectTimeoutMS=8000,
+    tz_aware=True,
+    connect=False,
+)
+db = client[settings.MONGO_DB]
+
 users_collection = db["users"]
-
-# ADD THESE TWO LINES
 sessions_collection = db["sessions"]
-
-# Messages Collection Schema (Logical)
-# {
-#   "session_id": str (required, indexed),
-#   "user_id": str (required),
-#   "sender": "user" | "bot" (required),
-#   "text": str (required),
-#   "sentiment": str (optional),
-#   "timestamp": datetime (required)
-# }
 messages_collection = db["messages"]
-# Ensure indexes for faster queries
-messages_collection.create_index([("session_id", 1), ("timestamp", 1)])
-
-# NEW COLLECTIONS
 journals_collection = db["journals"]
 moods_collection = db["moods"]
 tasks_collection = db["tasks"]
@@ -38,3 +57,72 @@ meditation_collection = db["meditation_sessions"]
 sleep_collection = db["sleep_records"]
 community_collection = db["community_posts"]
 goals_collection = db["goals"]
+
+# OTPs used to live in a process-local dict, so every restart logged people
+# out of the signup flow and a second worker never saw the first one's codes.
+otp_collection = db["otps"]
+
+# Every crisis escalation is written here and never updated or deleted.
+safety_events_collection = db["safety_events"]
+
+refresh_tokens_collection = db["refresh_tokens"]
+
+
+def ensure_indexes() -> None:
+    """Idempotent index creation. Safe to call on every boot."""
+    try:
+        # Partial index: only documents whose username is actually a string
+        # are indexed. Without this, legacy rows with username: null collide
+        # with each other (null == null) and the unique index build fails,
+        # leaving the collection with NO uniqueness guarantee at all.
+        users_collection.create_index(
+            [("username", ASCENDING)],
+            unique=True,
+            partialFilterExpression={"username": {"$type": "string"}},
+        )
+
+        messages_collection.create_index(
+            [("session_id", ASCENDING), ("timestamp", ASCENDING)]
+        )
+        messages_collection.create_index(
+            [("user_id", ASCENDING), ("timestamp", DESCENDING)]
+        )
+
+        sessions_collection.create_index([("user_id", ASCENDING)])
+
+        for coll in (
+            journals_collection,
+            moods_collection,
+            tasks_collection,
+            sleep_collection,
+            goals_collection,
+        ):
+            coll.create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
+
+        meditation_collection.create_index(
+            [("user_id", ASCENDING), ("date", ASCENDING)], unique=True
+        )
+        community_collection.create_index([("created_at", DESCENDING)])
+
+        # TTL index: Mongo expires the OTP for us, no cleanup job needed.
+        otp_collection.create_index("expires_at", expireAfterSeconds=0)
+        otp_collection.create_index([("email", ASCENDING)], unique=True)
+
+        refresh_tokens_collection.create_index(
+            "expires_at", expireAfterSeconds=0
+        )
+        refresh_tokens_collection.create_index([("jti", ASCENDING)], unique=True)
+
+        safety_events_collection.create_index(
+            [("user_id", ASCENDING), ("created_at", DESCENDING)]
+        )
+    except Exception as exc:  # pragma: no cover - index setup is best effort
+        log.warning("Index setup skipped: %s", exc)
+
+
+def ping() -> bool:
+    try:
+        client.admin.command("ping")
+        return True
+    except Exception:
+        return False
