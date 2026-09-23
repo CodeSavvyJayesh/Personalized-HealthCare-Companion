@@ -11,6 +11,8 @@ import {
   FiX,
   FiTrendingUp,
 } from "react-icons/fi";
+import API_URL from "../config";
+import { apiFetch } from "../api";
 import "./Meditation.css";
 
 // Sound asset for timer end
@@ -31,7 +33,7 @@ function Meditation({ userId }) {
   const [streak, setStreak] = useState(0);
   const [totalSessions, setTotalSessions] = useState(0);
   const [recommendation, setRecommendation] = useState(
-    "Loading recommendation...",
+    "Loading recommendation..."
   );
   const [toast, setToast] = useState(null);
 
@@ -41,7 +43,11 @@ function Meditation({ userId }) {
   // Clear toast after 3 seconds
   useEffect(() => {
     if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
+      const timer = setTimeout(
+        () => setToast(null),
+        3000
+      );
+
       return () => clearTimeout(timer);
     }
   }, [toast]);
@@ -50,18 +56,27 @@ function Meditation({ userId }) {
   useEffect(() => {
     const fetchStats = async () => {
       if (!userId) return;
+
       try {
-        const res = await fetch(`http://127.0.0.1:8000/meditation/${userId}`);
-        const data = await res.json();
+        const res = await apiFetch(
+          `${API_URL}/meditation/${userId}`
+        );
+
+        const data = res;
+
         if (data.success) {
           setStreak(data.current_streak);
           setTotalSessions(data.total_sessions);
           setRecommendation(data.suggestion);
         }
       } catch (err) {
-        console.error("Failed to fetch meditation stats", err);
+        console.error(
+          "Failed to fetch meditation stats",
+          err
+        );
       }
     };
+
     fetchStats();
   }, [userId]);
 
@@ -75,18 +90,29 @@ function Meditation({ userId }) {
       handleSessionEnd();
     }
 
-    return () => clearInterval(intervalRef.current);
+    return () =>
+      clearInterval(intervalRef.current);
   }, [isRunning, timer]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
+
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  const handleStartRequest = (type, duration, isVideo = false) => {
+  const handleStartRequest = (
+    type,
+    duration,
+    isVideo = false
+  ) => {
     // 1. Set Pending Session Data
-    setActiveSession({ type, duration, isVideo });
+    setActiveSession({
+      type,
+      duration,
+      isVideo,
+    });
+
     setInitialTime(duration);
     setTimer(duration);
 
@@ -97,12 +123,14 @@ function Meditation({ userId }) {
   const startSession = () => {
     setShowMoodModal(false);
     setIsRunning(true);
+
     if (activeSession.isVideo) {
       setShowVideo(true);
     }
   };
 
   const pauseTimer = () => setIsRunning(false);
+
   const resumeTimer = () => setIsRunning(true);
 
   const resetTimer = () => {
@@ -113,10 +141,17 @@ function Meditation({ userId }) {
 
   const handleSessionEnd = () => {
     setIsRunning(false);
+
     clearInterval(intervalRef.current);
+
     audioRef.current
       .play()
-      .catch((e) => console.log("Audio play failed interaction policy"));
+      .catch(() =>
+        console.log(
+          "Audio play failed interaction policy"
+        )
+      );
+
     setShowVideo(false);
     setShowMoodModal("after");
   };
@@ -133,35 +168,56 @@ function Meditation({ userId }) {
 
   const saveSessionData = async (finalMood) => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/meditation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userId,
-          completed: true,
-        }),
-      });
-      const data = await res.json();
+      const res = await apiFetch(
+        `${API_URL}/meditation`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            completed: true,
+          }),
+        }
+      );
+
+      const data = res;
 
       if (data.success) {
-        setToast({ type: "success", message: "Session completed!" });
+        setToast({
+          type: "success",
+          message: "Session completed!",
+        });
+
         // Refresh stats
-        const statsRes = await fetch(
-          `http://127.0.0.1:8000/meditation/${userId}`,
+        const statsRes = await apiFetch(
+          `${API_URL}/meditation/${userId}`
         );
-        const statsData = await statsRes.json();
+
+        const statsData =
+          statsRes;
+
         if (statsData.success) {
           setStreak(statsData.current_streak);
-          setTotalSessions(statsData.total_sessions);
+          setTotalSessions(
+            statsData.total_sessions
+          );
         }
       }
     } catch (err) {
-      console.error("Failed to save meditation session", err);
-      setToast({ type: "error", message: "Failed to save session" });
+      console.error(
+        "Failed to save meditation session",
+        err
+      );
+
+      setToast({
+        type: "error",
+        message: "Failed to save session",
+      });
     }
 
     setShowMoodModal(false);
-    setActiveSession(null); // Reset to menu
+    setActiveSession(null);
     setMoodBefore(null);
     setMoodAfter(null);
   };
@@ -175,33 +231,48 @@ function Meditation({ userId }) {
             ? "How do you feel right now?"
             : "How do you feel now?"}
         </h3>
+
         <div className="mood-options">
           <button
             className="mood-btn happy"
-            onClick={() => handleMoodSelection("happy")}
+            onClick={() =>
+              handleMoodSelection("happy")
+            }
           >
-            <FiSmile size={32} /> <span>Great</span>
+            <FiSmile size={32} />
+            <span>Great</span>
           </button>
+
           <button
             className="mood-btn neutral"
-            onClick={() => handleMoodSelection("neutral")}
+            onClick={() =>
+              handleMoodSelection("neutral")
+            }
           >
-            <FiMeh size={32} /> <span>Okay</span>
+            <FiMeh size={32} />
+            <span>Okay</span>
           </button>
+
           <button
             className="mood-btn sad"
-            onClick={() => handleMoodSelection("sad")}
+            onClick={() =>
+              handleMoodSelection("sad")
+            }
           >
-            <FiFrown size={32} /> <span>Stressed</span>
+            <FiFrown size={32} />
+            <span>Stressed</span>
           </button>
         </div>
-        {showMoodModal === "after" && moodBefore && (
-          <p className="mood-insight">
-            {moodBefore === "sad" || moodBefore === "neutral"
-              ? "Great job taking time for yourself! 📈"
-              : "Keep that positive energy flowing! ✨"}
-          </p>
-        )}
+
+        {showMoodModal === "after" &&
+          moodBefore && (
+            <p className="mood-insight">
+              {moodBefore === "sad" ||
+              moodBefore === "neutral"
+                ? "Great job taking time for yourself! 📈"
+                : "Keep that positive energy flowing! ✨"}
+            </p>
+          )}
       </div>
     </div>
   );
@@ -209,9 +280,13 @@ function Meditation({ userId }) {
   const renderVideoOverlay = () => (
     <div className="video-overlay">
       <div className="video-container">
-        <button className="close-video" onClick={() => setShowVideo(false)}>
+        <button
+          className="close-video"
+          onClick={() => setShowVideo(false)}
+        >
           <FiX />
         </button>
+
         <iframe
           width="100%"
           height="100%"
@@ -222,9 +297,16 @@ function Meditation({ userId }) {
           allowFullScreen
         ></iframe>
       </div>
+
       <div className="video-controls">
-        <div className="timer-display-overlay">{formatTime(timer)}</div>
-        <button className="control-btn stop" onClick={handleSessionEnd}>
+        <div className="timer-display-overlay">
+          {formatTime(timer)}
+        </div>
+
+        <button
+          className="control-btn stop"
+          onClick={handleSessionEnd}
+        >
           End Session
         </button>
       </div>
@@ -240,15 +322,25 @@ function Meditation({ userId }) {
       <div className="meditation-header">
         <div className="header-text">
           <h1>Meditation & Focus</h1>
-          <p className="recommendation-text">🧘 {recommendation}</p>
+
+          <p className="recommendation-text">
+            🧘 {recommendation}
+          </p>
         </div>
+
         <div className="streak-card">
           <div className="streak-icon">
             <FiTrendingUp />
           </div>
+
           <div className="streak-info">
-            <span className="streak-count">{streak} Day Streak 🔥</span>
-            <span className="streak-sub">{totalSessions} Sessions Total</span>
+            <span className="streak-count">
+              {streak} Day Streak 🔥
+            </span>
+
+            <span className="streak-sub">
+              {totalSessions} Sessions Total
+            </span>
           </div>
         </div>
       </div>
@@ -258,16 +350,22 @@ function Meditation({ userId }) {
         {/* Left Col: Guided Sessions */}
         <div className="guided-section">
           <h2>Guided Sessions</h2>
+
           <div className="cards-grid">
             <div
               className="meditation-card relax"
               onClick={() =>
-                handleStartRequest("Guided: Quick Relax", 120, true)
+                handleStartRequest(
+                  "Guided: Quick Relax",
+                  120,
+                  true
+                )
               }
             >
               <div className="card-icon-bg">
                 <FiWind />
               </div>
+
               <h3>Quick Relax</h3>
               <p>2 Min • Reset</p>
             </div>
@@ -275,12 +373,17 @@ function Meditation({ userId }) {
             <div
               className="meditation-card stress"
               onClick={() =>
-                handleStartRequest("Guided: Stress Relief", 300, true)
+                handleStartRequest(
+                  "Guided: Stress Relief",
+                  300,
+                  true
+                )
               }
             >
               <div className="card-icon-bg">
                 <FiFrown />
               </div>
+
               <h3>Stress Relief</h3>
               <p>5 Min • Calm</p>
             </div>
@@ -288,23 +391,35 @@ function Meditation({ userId }) {
             <div
               className="meditation-card focus"
               onClick={() =>
-                handleStartRequest("Guided: Deep Focus", 600, true)
+                handleStartRequest(
+                  "Guided: Deep Focus",
+                  600,
+                  true
+                )
               }
             >
               <div className="card-icon-bg">
                 <FiRefreshCw />
               </div>
+
               <h3>Deep Focus</h3>
               <p>10 Min • Clarity</p>
             </div>
 
             <div
               className="meditation-card sleep"
-              onClick={() => handleStartRequest("Guided: Sleep", 900, true)}
+              onClick={() =>
+                handleStartRequest(
+                  "Guided: Sleep",
+                  900,
+                  true
+                )
+              }
             >
               <div className="card-icon-bg">
                 <FiAward />
               </div>
+
               <h3>Sleep Well</h3>
               <p>15 Min • Rest</p>
             </div>
@@ -314,33 +429,50 @@ function Meditation({ userId }) {
         {/* Right Col: Custom Timer */}
         <div className="timer-section">
           <h2>Custom Timer</h2>
-          <div className={`timer-circle ${isRunning ? "breathing" : ""}`}>
+
+          <div
+            className={`timer-circle ${
+              isRunning ? "breathing" : ""
+            }`}
+          >
             <span className="time-text">
-              {activeSession && !activeSession.isVideo
+              {activeSession &&
+              !activeSession.isVideo
                 ? formatTime(timer)
                 : formatTime(customMinutes * 60)}
             </span>
+
             <span className="status-text">
-              {isRunning ? "Breathe..." : "Ready"}
+              {isRunning
+                ? "Breathe..."
+                : "Ready"}
             </span>
           </div>
 
           {!isRunning ? (
             <div className="timer-setup">
               <label>Duration (Minutes)</label>
+
               <input
                 type="number"
                 min="1"
                 max="60"
                 value={customMinutes}
                 onChange={(e) =>
-                  setCustomMinutes(parseInt(e.target.value) || 1)
+                  setCustomMinutes(
+                    parseInt(e.target.value) || 1
+                  )
                 }
               />
+
               <button
                 className="start-btn"
                 onClick={() =>
-                  handleStartRequest("Custom Timer", customMinutes * 60, false)
+                  handleStartRequest(
+                    "Custom Timer",
+                    customMinutes * 60,
+                    false
+                  )
                 }
               >
                 <FiPlay /> Start
@@ -350,17 +482,30 @@ function Meditation({ userId }) {
             <div className="timer-controls">
               <button
                 className="control-btn pause"
-                onClick={isRunning ? pauseTimer : resumeTimer}
+                onClick={
+                  isRunning
+                    ? pauseTimer
+                    : resumeTimer
+                }
               >
-                {isRunning ? <FiPause /> : <FiPlay />}
+                {isRunning ? (
+                  <FiPause />
+                ) : (
+                  <FiPlay />
+                )}
               </button>
-              <button className="control-btn reset" onClick={resetTimer}>
+
+              <button
+                className="control-btn reset"
+                onClick={resetTimer}
+              >
                 <FiRefreshCw />
               </button>
             </div>
           )}
         </div>
       </div>
+
       {/* TOAST NOTIFICATION */}
       {toast && (
         <div
@@ -373,7 +518,10 @@ function Meditation({ userId }) {
             borderRadius: "8px",
             color: "#fff",
             zIndex: 1000,
-            backgroundColor: toast.type === "success" ? "#10b981" : "#ef4444",
+            backgroundColor:
+              toast.type === "success"
+                ? "#10b981"
+                : "#ef4444",
           }}
         >
           {toast.message}

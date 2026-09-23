@@ -13,8 +13,11 @@ import SleepHealth from "./components/SleepHealth";
 import Community from "./components/Community";
 import GoalSetting from "./components/GoalSetting";
 import Insights from "./components/Insights";
-import React, { useState, useContext } from "react";
+import SafetyLab from "./components/SafetyLab";
+import Fitness from "./components/Fitness";
+import React, { useState, useContext, useEffect } from "react";
 import { ThemeContext } from "./ThemeContext";
+import { logout as logoutRequest, tokens } from "./api";
 import {
   FiHome,
   FiMessageSquare,
@@ -29,7 +32,9 @@ import {
   FiUsers,
   FiTarget,
   FiTrendingUp,
+  FiShield,
 } from "react-icons/fi";
+import { LuDumbbell } from "react-icons/lu";
 
 import "./App.css";
 
@@ -38,9 +43,7 @@ import mediverseLogo from "./mediverseLogo.png";
 import doctorImage from "./doctor.png";
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    !!localStorage.getItem("user_id"),
-  );
+  const [isLoggedIn, setIsLoggedIn] = useState(tokens.isAuthenticated);
   const [showSignup, setShowSignup] = useState(false);
   const [activeModule, setActiveModule] = useState("dashboard");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -59,14 +62,26 @@ function App() {
     setIsLoggedIn(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = React.useCallback(async () => {
+    await logoutRequest();
     setIsLoggedIn(false);
     setActiveModule("dashboard");
     setUserId("");
     setSessionId("");
-    localStorage.removeItem("user_id");
-    localStorage.removeItem("session_id");
-  };
+  }, []);
+
+  // The API client dispatches this when a refresh fails, so an expired
+  // session drops the user back to the login screen instead of leaving
+  // them staring at empty panels.
+  useEffect(() => {
+    const onForcedLogout = () => {
+      setIsLoggedIn(false);
+      setUserId("");
+      setSessionId("");
+    };
+    window.addEventListener("mindwell:logout", onForcedLogout);
+    return () => window.removeEventListener("mindwell:logout", onForcedLogout);
+  }, []);
 
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
@@ -195,6 +210,14 @@ function App() {
           </button>
 
           <button
+            className={`nav-item ${activeModule === "fitness" ? "active" : ""}`}
+            onClick={() => navigateTo("fitness")}
+          >
+            <LuDumbbell size={20} />
+            {isSidebarOpen && <span>Physical Fitness</span>}
+          </button>
+
+          <button
             className={`nav-item ${activeModule === "community" ? "active" : ""}`}
             onClick={() => navigateTo("community")}
           >
@@ -216,6 +239,16 @@ function App() {
           >
             <FiTrendingUp size={20} />
             {isSidebarOpen && <span>Insights</span>}
+          </button>
+
+          <button
+            className={`nav-item nav-item-flagship ${
+              activeModule === "safety" ? "active" : ""
+            }`}
+            onClick={() => navigateTo("safety")}
+          >
+            <FiShield size={20} />
+            {isSidebarOpen && <span>Safety Lab</span>}
           </button>
         </nav>
 
@@ -245,9 +278,11 @@ function App() {
               {activeModule === "calmSounds" && "Calm Sounds"}
               {activeModule === "resources" && "Resources"}
               {activeModule === "sleep" && "Sleep Health"}
+              {activeModule === "fitness" && "Physical Fitness"}
               {/* {activeModule === "community" && "Community"} */}
               {/* {activeModule === "goals" && "Goal Setting"} */}
               {activeModule === "analytics" && "Wellness Analytics"}
+              {activeModule === "safety" && "Safety Lab"}
             </h2>
           </div>
 
@@ -281,11 +316,13 @@ function App() {
           {activeModule === "calmSounds" && <CalmSounds />}
           {activeModule === "resources" && <Resources />}
           {activeModule === "sleep" && <SleepHealth userId={userId} />}
+          {activeModule === "fitness" && <Fitness userId={userId} />}
           {activeModule === "community" && <Community userId={userId} />}
           {activeModule === "goals" && <GoalSetting userId={userId} />}
           {activeModule === "analytics" && (
             <Insights userId={userId} sessionId={sessionId} />
           )}
+          {activeModule === "safety" && <SafetyLab />}
         </div>
       </main>
     </div>

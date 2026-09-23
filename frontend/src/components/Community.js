@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import API_URL from "../config";
+import { apiFetch } from "../api";
 import {
   FiUsers,
   FiMessageSquare,
@@ -17,8 +19,9 @@ function Community({ userId }) {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/community/posts`);
-        const data = await res.json();
+        const res = await apiFetch(`${API_URL}/community/posts`);
+        const data = res;
+
         if (data.success) {
           setPosts(data.posts);
         }
@@ -28,6 +31,7 @@ function Community({ userId }) {
         setLoading(false);
       }
     };
+
     fetchPosts();
   }, []);
 
@@ -41,28 +45,31 @@ function Community({ userId }) {
       showToast("Post content cannot be empty", "error");
       return;
     }
+
     if (!userId) {
       showToast("Please log in to post", "error");
       return;
     }
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/community/posts", {
+      const res = await apiFetch(`${API_URL}/community/posts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userId,
-          content: newPostContent,
-        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ content: newPostContent }),
       });
-      const data = await res.json();
+
+      const data = res;
+
       if (data.success) {
         showToast("Post created successfully!");
         setNewPostContent("");
 
         // Refetch posts
-        const updatedRes = await fetch(`http://127.0.0.1:8000/community/posts`);
-        const updatedData = await updatedRes.json();
+        const updatedRes = await apiFetch(`${API_URL}/community/posts`);
+        const updatedData = updatedRes;
+
         if (updatedData.success) {
           setPosts(updatedData.posts);
         }
@@ -82,28 +89,35 @@ function Community({ userId }) {
     }
 
     try {
-      const res = await fetch(
-        `http://127.0.0.1:8000/community/posts/${postId}/like`,
+      const res = await apiFetch(
+        `${API_URL}/community/posts/${postId}/like`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId }),
-        },
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        }
       );
-      const data = await res.json();
+
+      const data = res;
+
       if (data.success) {
         // Update local state for immediate feedback
         setPosts(
           posts.map((post) => {
             if (post._id === postId) {
-              const isLiked = post.likes.includes(userId);
-              const newLikes = isLiked
-                ? post.likes.filter((id) => id !== userId)
-                : [...post.likes, userId];
-              return { ...post, likes: newLikes };
+              const isLiked = post.liked_by_me;
+
+              return {
+                ...post,
+                liked_by_me: !isLiked,
+                like_count: (post.like_count || 0) + (isLiked ? -1 : 1),
+              };
             }
+
             return post;
-          }),
+          })
         );
       }
     } catch (err) {
@@ -114,6 +128,7 @@ function Community({ userId }) {
   const timeAgo = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
+
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
     const diffHrs = Math.floor(diffMins / 60);
@@ -121,6 +136,7 @@ function Community({ userId }) {
 
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHrs < 24) return `${diffHrs}h ago`;
+
     return `${diffDays}d ago`;
   };
 
@@ -136,8 +152,10 @@ function Community({ userId }) {
         <h1>
           <FiUsers /> Community Support
         </h1>
+
         <p>
-          Share your thoughts, read others' experiences, and support each other.
+          Share your thoughts, read others' experiences, and support each
+          other.
         </p>
       </div>
 
@@ -149,6 +167,7 @@ function Community({ userId }) {
             onChange={(e) => setNewPostContent(e.target.value)}
             rows={4}
           />
+
           <div className="create-post-actions">
             <button className="post-btn" onClick={handleCreatePost}>
               <FiMessageSquare /> Post
@@ -158,36 +177,48 @@ function Community({ userId }) {
 
         <div className="posts-feed">
           {loading ? (
-            <div className="loading-state">Loading community posts...</div>
+            <div className="loading-state">
+              Loading community posts...
+            </div>
           ) : posts.length > 0 ? (
             posts.map((post) => (
               <div key={post._id} className="post-card">
                 <div className="post-header">
                   <div className="post-author">
                     <div className="author-avatar">
-                      {post.user_id.charAt(0).toUpperCase()}
+                      {(post.author || "M").charAt(0).toUpperCase()}
                     </div>
+
                     <span className="author-name">
-                      User {post.user_id.substring(0, 4)}...
+                      {post.author || "Member"}
                     </span>
                   </div>
+
                   <div className="post-time">
                     <FiClock /> {timeAgo(post.created_at)}
                   </div>
                 </div>
 
-                <div className="post-body">{post.content}</div>
+                <div className="post-body">
+                  {post.content}
+                </div>
 
                 <div className="post-footer">
                   <button
-                    className={`action-btn ${post.likes.includes(userId) ? "liked" : ""}`}
+                    className={`action-btn ${
+                      post.liked_by_me ? "liked" : ""
+                    }`}
                     onClick={() => handleLike(post._id)}
                   >
                     <FiHeart
-                      className={post.likes.includes(userId) ? "filled" : ""}
+                      className={
+                        post.liked_by_me ? "filled" : ""
+                      }
                     />
-                    {post.likes.length}
+
+                    {post.like_count || 0}
                   </button>
+
                   <button className="action-btn">
                     <FiShare2 /> Share
                   </button>
@@ -196,7 +227,9 @@ function Community({ userId }) {
             ))
           ) : (
             <div className="empty-state">
-              <p>No posts yet. Be the first to share something!</p>
+              <p>
+                No posts yet. Be the first to share something!
+              </p>
             </div>
           )}
         </div>

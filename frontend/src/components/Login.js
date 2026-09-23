@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { FiMail, FiLock, FiAlertCircle, FiCheck } from "react-icons/fi";
+import API_URL from "../config";
+import { apiFetch, login as loginRequest } from "../api";
 import "./Auth.css";
 
 function Login({ onLoginSuccess, onSwitch }) {
@@ -13,63 +15,66 @@ function Login({ onLoginSuccess, onSwitch }) {
 
   const validateLogin = () => {
     const newErrors = {};
+
     if (!email) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = "Email is invalid";
     }
+
     if (!password) {
       newErrors.password = "Password is required";
     }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const validateForgotEmail = () => {
     const newErrors = {};
+
     if (!email) {
       newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = "Email is invalid";
     }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const validateReset = () => {
     const newErrors = {};
+
     if (!otp) {
       newErrors.otp = "OTP is required";
     }
+
     if (!newPassword) {
       newErrors.newPassword = "New password is required";
     } else if (newPassword.length < 6) {
-      newErrors.newPassword = "Password must be at least 6 characters";
+      newErrors.newPassword =
+        "Password must be at least 6 characters";
     }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
+
     if (!validateLogin()) return;
 
     setLoading(true);
-    try {
-      const response = await fetch("http://127.0.0.1:8000/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: email, password }),
-      });
-      const data = await response.json();
 
-      if (data.success) {
-        onLoginSuccess(data.user_id, data.session_id);
-      } else {
-        setErrors({ form: data.message || "Invalid credentials" });
-      }
+    try {
+      const data = await loginRequest(email, password);
+      onLoginSuccess(data.user_id, data.session_id);
     } catch (err) {
-      setErrors({ form: "Server error, please try again." });
+      setErrors({
+        form: err.message || "Server error, please try again.",
+      });
     } finally {
       setLoading(false);
     }
@@ -77,25 +82,37 @@ function Login({ onLoginSuccess, onSwitch }) {
 
   const handleSendResetOtp = async (e) => {
     e.preventDefault();
+
     if (!validateForgotEmail()) return;
 
     setLoading(true);
+
     try {
-      const response = await fetch("http://127.0.0.1:8000/send-reset-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await response.json();
+      const response = await apiFetch(
+        `${API_URL}/send-reset-otp`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        }
+      );
+
+      const data = response;
 
       if (data.success) {
         setStep(3);
         setErrors({});
       } else {
-        setErrors({ form: data.message || "Error sending OTP" });
+        setErrors({
+          form: data.message || "Error sending OTP",
+        });
       }
     } catch (err) {
-      setErrors({ form: "Server error, please try again." });
+      setErrors({
+        form: "Server error, please try again.",
+      });
     } finally {
       setLoading(false);
     }
@@ -103,28 +120,48 @@ function Login({ onLoginSuccess, onSwitch }) {
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
+
     if (!validateReset()) return;
 
     setLoading(true);
+
     try {
-      const response = await fetch("http://127.0.0.1:8000/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp, new_password: newPassword }),
-      });
-      const data = await response.json();
+      const response = await apiFetch(
+        `${API_URL}/reset-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            otp,
+            new_password: newPassword,
+          }),
+        }
+      );
+
+      const data = response;
 
       if (data.success) {
         setStep(1);
         setPassword("");
         setOtp("");
         setNewPassword("");
-        setErrors({ form: "Password reset successfully. Please log in." }); // Using form error as success message temporarily
+
+        setErrors({
+          form:
+            "Password reset successfully. Please log in.",
+        });
       } else {
-        setErrors({ form: data.message || "Invalid OTP" });
+        setErrors({
+          form: data.message || "Invalid OTP",
+        });
       }
     } catch (err) {
-      setErrors({ form: "Server error, please try again." });
+      setErrors({
+        form: "Server error, please try again.",
+      });
     } finally {
       setLoading(false);
     }
@@ -138,10 +175,16 @@ function Login({ onLoginSuccess, onSwitch }) {
           {step === 2 && "Reset Password"}
           {step === 3 && "Verify OTP"}
         </h2>
+
         <p className="auth-subtitle">
-          {step === 1 && "Sign in to continue your journey"}
-          {step === 2 && "Enter your email to receive an OTP"}
-          {step === 3 && `Enter the OTP sent to ${email}`}
+          {step === 1 &&
+            "Sign in to continue your journey"}
+
+          {step === 2 &&
+            "Enter your email to receive an OTP"}
+
+          {step === 3 &&
+            `Enter the OTP sent to ${email}`}
         </p>
       </div>
 
@@ -151,16 +194,23 @@ function Login({ onLoginSuccess, onSwitch }) {
           style={{
             justifyContent: "center",
             marginBottom: "10px",
-            color: errors.form.includes("successfully") ? "green" : "",
+            color: errors.form.includes("successfully")
+              ? "green"
+              : "",
           }}
         >
-          {!errors.form.includes("successfully") && <FiAlertCircle />}{" "}
+          {!errors.form.includes("successfully") && (
+            <FiAlertCircle />
+          )}{" "}
           {errors.form}
         </div>
       )}
 
       {step === 1 && (
-        <form onSubmit={handleLogin} className="auth-form">
+        <form
+          onSubmit={handleLogin}
+          className="auth-form"
+        >
           <div className="form-group">
             <input
               type="email"
@@ -168,13 +218,27 @@ function Login({ onLoginSuccess, onSwitch }) {
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                if (errors.email) setErrors({ ...errors, email: "" });
+
+                if (errors.email) {
+                  setErrors({
+                    ...errors,
+                    email: "",
+                  });
+                }
               }}
-              className={`form-input ${errors.email ? "error" : ""}`}
+              className={`form-input ${
+                errors.email ? "error" : ""
+              }`}
               required
             />
+
             <FiMail className="input-icon" />
-            {errors.email && <span className="error-text">{errors.email}</span>}
+
+            {errors.email && (
+              <span className="error-text">
+                {errors.email}
+              </span>
+            )}
           </div>
 
           <div className="form-group">
@@ -184,25 +248,44 @@ function Login({ onLoginSuccess, onSwitch }) {
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
-                if (errors.password) setErrors({ ...errors, password: "" });
+
+                if (errors.password) {
+                  setErrors({
+                    ...errors,
+                    password: "",
+                  });
+                }
               }}
-              className={`form-input ${errors.password ? "error" : ""}`}
+              className={`form-input ${
+                errors.password ? "error" : ""
+              }`}
               required
             />
+
             <FiLock className="input-icon" />
+
             {errors.password && (
-              <span className="error-text">{errors.password}</span>
+              <span className="error-text">
+                {errors.password}
+              </span>
             )}
           </div>
 
-          <button type="submit" className="auth-button" disabled={loading}>
+          <button
+            type="submit"
+            className="auth-button"
+            disabled={loading}
+          >
             {loading ? "Signing in..." : "Log In"}
           </button>
         </form>
       )}
 
       {step === 2 && (
-        <form onSubmit={handleSendResetOtp} className="auth-form">
+        <form
+          onSubmit={handleSendResetOtp}
+          className="auth-form"
+        >
           <div className="form-group">
             <input
               type="email"
@@ -210,16 +293,34 @@ function Login({ onLoginSuccess, onSwitch }) {
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                if (errors.email) setErrors({ ...errors, email: "" });
+
+                if (errors.email) {
+                  setErrors({
+                    ...errors,
+                    email: "",
+                  });
+                }
               }}
-              className={`form-input ${errors.email ? "error" : ""}`}
+              className={`form-input ${
+                errors.email ? "error" : ""
+              }`}
               required
             />
+
             <FiMail className="input-icon" />
-            {errors.email && <span className="error-text">{errors.email}</span>}
+
+            {errors.email && (
+              <span className="error-text">
+                {errors.email}
+              </span>
+            )}
           </div>
 
-          <button type="submit" className="auth-button" disabled={loading}>
+          <button
+            type="submit"
+            className="auth-button"
+            disabled={loading}
+          >
             {loading ? "Sending OTP..." : "Send OTP"}
           </button>
 
@@ -230,7 +331,10 @@ function Login({ onLoginSuccess, onSwitch }) {
               setErrors({});
             }}
             className="auth-link"
-            style={{ marginTop: "10px", fontSize: "0.9rem" }}
+            style={{
+              marginTop: "10px",
+              fontSize: "0.9rem",
+            }}
           >
             Back to Login
           </button>
@@ -238,7 +342,10 @@ function Login({ onLoginSuccess, onSwitch }) {
       )}
 
       {step === 3 && (
-        <form onSubmit={handleResetPassword} className="auth-form">
+        <form
+          onSubmit={handleResetPassword}
+          className="auth-form"
+        >
           <div className="form-group">
             <input
               type="text"
@@ -246,13 +353,27 @@ function Login({ onLoginSuccess, onSwitch }) {
               value={otp}
               onChange={(e) => {
                 setOtp(e.target.value);
-                if (errors.otp) setErrors({ ...errors, otp: "" });
+
+                if (errors.otp) {
+                  setErrors({
+                    ...errors,
+                    otp: "",
+                  });
+                }
               }}
-              className={`form-input ${errors.otp ? "error" : ""}`}
+              className={`form-input ${
+                errors.otp ? "error" : ""
+              }`}
               required
             />
+
             <FiCheck className="input-icon" />
-            {errors.otp && <span className="error-text">{errors.otp}</span>}
+
+            {errors.otp && (
+              <span className="error-text">
+                {errors.otp}
+              </span>
+            )}
           </div>
 
           <div className="form-group">
@@ -262,20 +383,37 @@ function Login({ onLoginSuccess, onSwitch }) {
               value={newPassword}
               onChange={(e) => {
                 setNewPassword(e.target.value);
-                if (errors.newPassword)
-                  setErrors({ ...errors, newPassword: "" });
+
+                if (errors.newPassword) {
+                  setErrors({
+                    ...errors,
+                    newPassword: "",
+                  });
+                }
               }}
-              className={`form-input ${errors.newPassword ? "error" : ""}`}
+              className={`form-input ${
+                errors.newPassword ? "error" : ""
+              }`}
               required
             />
+
             <FiLock className="input-icon" />
+
             {errors.newPassword && (
-              <span className="error-text">{errors.newPassword}</span>
+              <span className="error-text">
+                {errors.newPassword}
+              </span>
             )}
           </div>
 
-          <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? "Resetting..." : "Reset Password"}
+          <button
+            type="submit"
+            className="auth-button"
+            disabled={loading}
+          >
+            {loading
+              ? "Resetting..."
+              : "Reset Password"}
           </button>
 
           <button
@@ -285,7 +423,10 @@ function Login({ onLoginSuccess, onSwitch }) {
               setErrors({});
             }}
             className="auth-link"
-            style={{ marginTop: "10px", fontSize: "0.9rem" }}
+            style={{
+              marginTop: "10px",
+              fontSize: "0.9rem",
+            }}
           >
             Back to Login
           </button>
@@ -296,7 +437,10 @@ function Login({ onLoginSuccess, onSwitch }) {
         <div className="auth-footer">
           <p>
             Don't have an account?{" "}
-            <button onClick={onSwitch} className="auth-link">
+            <button
+              onClick={onSwitch}
+              className="auth-link"
+            >
               Sign Up
             </button>
           </p>
@@ -308,7 +452,10 @@ function Login({ onLoginSuccess, onSwitch }) {
               setErrors({});
             }}
             className="auth-link"
-            style={{ fontSize: "0.85rem", marginTop: "5px" }}
+            style={{
+              fontSize: "0.85rem",
+              marginTop: "5px",
+            }}
           >
             Forgot Password?
           </button>

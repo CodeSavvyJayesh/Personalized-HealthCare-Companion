@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import API_URL from "../config";
+import { apiFetch } from "../api";
 import {
   FiSend,
   FiUser,
@@ -50,10 +52,10 @@ function Chat({ userId, sessionId }) {
     const fetchHistory = async () => {
       if (!userId || !sessionId) return;
       try {
-        const res = await fetch(
-          `http://127.0.0.1:8000/chat-history/${sessionId}`,
+        const res = await apiFetch(
+         `${API_URL}/chat-history/${sessionId}`,
         );
-        const data = await res.json();
+        const data = res;
 
         const defaultMessage = {
           text: "Hello, I am **MindWell AI** 💙\n\nI'm here to listen and support you. How are you feeling right now?",
@@ -183,24 +185,25 @@ function Chat({ userId, sessionId }) {
     setIsLoading(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/chat", {
+      const res = await apiFetch(`${API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: userMessage.text,
           language,
-          user_id: userId,
           session_id: sessionId,
         }),
       });
 
-      const data = await res.json();
+      const data = res;
       const fullReply =
         data.bot_message?.text ||
         data.reply ||
         data.response ||
         "I am listening 💙";
       const sentiment = data.sentiment;
+      // Crisis replies are rendered as a distinct card, not as ordinary chat.
+      const isSafetyReply = Boolean(data.resources_shown);
 
       const botTimestamp = new Date().toLocaleTimeString([], {
         hour: "2-digit",
@@ -216,7 +219,13 @@ function Chat({ userId, sessionId }) {
 
       setMessages((prev) => [
         ...prev,
-        { text: "", sender: "bot", timestamp: botTimestamp },
+        {
+          text: "",
+          sender: "bot",
+          timestamp: botTimestamp,
+          safety: isSafetyReply,
+          riskTier: data.risk_tier,
+        },
       ]);
 
       setIsLoading(false);
@@ -313,7 +322,7 @@ function Chat({ userId, sessionId }) {
 
       <div className="messages-area" ref={messagesAreaRef}>
         {messages.map((m, i) => (
-          <div key={i} className={`message-wrapper ${m.sender}`}>
+          <div key={i} className={`message-wrapper ${m.sender} ${m.safety ? "safety" : ""}`}>
             <div className={`avatar-frame ${m.sender}`}>
               {m.sender === "bot" ? (
                 <img src={mediverseLogo} alt="AI" />

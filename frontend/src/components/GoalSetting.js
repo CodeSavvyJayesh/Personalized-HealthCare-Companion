@@ -6,6 +6,8 @@ import {
   FiPlus,
   FiTrash2,
 } from "react-icons/fi";
+import API_URL from "../config";
+import { apiFetch } from "../api";
 import "./GoalSetting.css";
 
 function GoalSetting({ userId }) {
@@ -18,9 +20,11 @@ function GoalSetting({ userId }) {
   useEffect(() => {
     const fetchGoals = async () => {
       if (!userId) return;
+
       try {
-        const res = await fetch(`http://127.0.0.1:8000/goals/${userId}`);
-        const data = await res.json();
+        const res = await apiFetch(`${API_URL}/goals/${userId}`);
+        const data = res;
+
         if (data.success) {
           setGoals(data.goals);
         }
@@ -30,6 +34,7 @@ function GoalSetting({ userId }) {
         setLoading(false);
       }
     };
+
     fetchGoals();
   }, [userId]);
 
@@ -45,23 +50,30 @@ function GoalSetting({ userId }) {
     }
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/goals", {
+      const res = await apiFetch(`${API_URL}/goals`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          user_id: userId,
           title: newGoalTitle,
           category: newGoalCategory,
         }),
       });
-      const data = await res.json();
+
+      const data = res;
+
       if (data.success) {
         showToast("Goal added successfully!");
         setNewGoalTitle("");
 
         // Refetch goals
-        const updatedRes = await fetch(`http://127.0.0.1:8000/goals/${userId}`);
-        const updatedData = await updatedRes.json();
+        const updatedRes = await apiFetch(
+          `${API_URL}/goals/${userId}`
+        );
+
+        const updatedData = updatedRes;
+
         if (updatedData.success) {
           setGoals(updatedData.goals);
         }
@@ -76,17 +88,31 @@ function GoalSetting({ userId }) {
 
   const handleToggleGoal = async (goalId, currentStatus) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/goals/${goalId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed: !currentStatus }),
-      });
-      const data = await res.json();
+      const res = await apiFetch(
+        `${API_URL}/goals/${goalId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            completed: !currentStatus,
+          }),
+        }
+      );
+
+      const data = res;
+
       if (data.success) {
         setGoals(
           goals.map((goal) =>
-            goal._id === goalId ? { ...goal, completed: !currentStatus } : goal,
-          ),
+            goal._id === goalId
+              ? {
+                  ...goal,
+                  completed: !currentStatus,
+                }
+              : goal
+          )
         );
       }
     } catch (err) {
@@ -96,12 +122,20 @@ function GoalSetting({ userId }) {
 
   const handleDeleteGoal = async (goalId) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/goals/${goalId}`, {
-        method: "DELETE",
-      });
-      const data = await res.json();
+      const res = await apiFetch(
+        `${API_URL}/goals/${goalId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = res;
+
       if (data.success) {
-        setGoals(goals.filter((goal) => goal._id !== goalId));
+        setGoals(
+          goals.filter((goal) => goal._id !== goalId)
+        );
+
         showToast("Goal deleted");
       }
     } catch (err) {
@@ -109,15 +143,25 @@ function GoalSetting({ userId }) {
     }
   };
 
-  const completedGoals = goals.filter((g) => g.completed).length;
+  const completedGoals = goals.filter(
+    (g) => g.completed
+  ).length;
+
   const totalGoals = goals.length;
+
   const progress =
-    totalGoals === 0 ? 0 : Math.round((completedGoals / totalGoals) * 100);
+    totalGoals === 0
+      ? 0
+      : Math.round(
+          (completedGoals / totalGoals) * 100
+        );
 
   return (
     <div className="goals-container">
       {toast && (
-        <div className={`toast-notification ${toast.type}`}>
+        <div
+          className={`toast-notification ${toast.type}`}
+        >
           <span>{toast.message}</span>
         </div>
       )}
@@ -126,29 +170,53 @@ function GoalSetting({ userId }) {
         <h1>
           <FiTarget /> Goal Setting
         </h1>
-        <p>Set, track, and achieve your personal milestones.</p>
+
+        <p>
+          Set, track, and achieve your personal milestones.
+        </p>
       </div>
 
       <div className="goals-content">
         <div className="add-goal-card">
           <h2>Create New Goal</h2>
+
           <div className="add-goal-form">
             <input
               type="text"
               placeholder="What do you want to achieve?"
               value={newGoalTitle}
-              onChange={(e) => setNewGoalTitle(e.target.value)}
+              onChange={(e) =>
+                setNewGoalTitle(e.target.value)
+              }
             />
+
             <select
               value={newGoalCategory}
-              onChange={(e) => setNewGoalCategory(e.target.value)}
+              onChange={(e) =>
+                setNewGoalCategory(e.target.value)
+              }
             >
-              <option value="Personal">Personal</option>
-              <option value="Health">Health</option>
-              <option value="Career">Career</option>
-              <option value="Financial">Financial</option>
+              <option value="Personal">
+                Personal
+              </option>
+
+              <option value="Health">
+                Health
+              </option>
+
+              <option value="Career">
+                Career
+              </option>
+
+              <option value="Financial">
+                Financial
+              </option>
             </select>
-            <button className="add-btn" onClick={handleAddGoal}>
+
+            <button
+              className="add-btn"
+              onClick={handleAddGoal}
+            >
               <FiPlus /> Add Goal
             </button>
           </div>
@@ -156,39 +224,69 @@ function GoalSetting({ userId }) {
 
         <div className="goals-progress-card">
           <h2>Your Progress</h2>
+
           <div className="progress-stats">
             <div className="stat">
-              <span className="stat-value">{completedGoals}</span>
-              <span className="stat-label">Completed</span>
+              <span className="stat-value">
+                {completedGoals}
+              </span>
+
+              <span className="stat-label">
+                Completed
+              </span>
             </div>
+
             <div className="stat">
-              <span className="stat-value">{totalGoals}</span>
-              <span className="stat-label">Total Goals</span>
+              <span className="stat-value">
+                {totalGoals}
+              </span>
+
+              <span className="stat-label">
+                Total Goals
+              </span>
             </div>
           </div>
+
           <div className="progress-bar-container">
             <div
               className="progress-bar-fill"
-              style={{ width: `${progress}%` }}
+              style={{
+                width: `${progress}%`,
+              }}
             ></div>
           </div>
-          <p className="progress-text">{progress}% Completed</p>
+
+          <p className="progress-text">
+            {progress}% Completed
+          </p>
         </div>
 
         <div className="goals-list-card">
           <h2>Your Goals</h2>
+
           {loading ? (
-            <div className="loading-state">Loading goals...</div>
+            <div className="loading-state">
+              Loading goals...
+            </div>
           ) : goals.length > 0 ? (
             <div className="goals-list">
               {goals.map((goal) => (
                 <div
                   key={goal._id}
-                  className={`goal-item ${goal.completed ? "completed" : ""}`}
+                  className={`goal-item ${
+                    goal.completed
+                      ? "completed"
+                      : ""
+                  }`}
                 >
                   <button
                     className="toggle-btn"
-                    onClick={() => handleToggleGoal(goal._id, goal.completed)}
+                    onClick={() =>
+                      handleToggleGoal(
+                        goal._id,
+                        goal.completed
+                      )
+                    }
                   >
                     {goal.completed ? (
                       <FiCheckCircle className="checked" />
@@ -196,17 +294,24 @@ function GoalSetting({ userId }) {
                       <FiCircle />
                     )}
                   </button>
+
                   <div className="goal-details">
-                    <span className="goal-title">{goal.title}</span>
+                    <span className="goal-title">
+                      {goal.title}
+                    </span>
+
                     <span
                       className={`goal-category cat-${goal.category.toLowerCase()}`}
                     >
                       {goal.category}
                     </span>
                   </div>
+
                   <button
                     className="delete-btn"
-                    onClick={() => handleDeleteGoal(goal._id)}
+                    onClick={() =>
+                      handleDeleteGoal(goal._id)
+                    }
                   >
                     <FiTrash2 />
                   </button>
@@ -215,7 +320,10 @@ function GoalSetting({ userId }) {
             </div>
           ) : (
             <div className="empty-state">
-              <p>No goals set yet. Start by adding one above!</p>
+              <p>
+                No goals set yet. Start by adding one
+                above!
+              </p>
             </div>
           )}
         </div>

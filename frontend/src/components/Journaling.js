@@ -8,6 +8,8 @@ import {
   FiCheckCircle,
   FiAlertCircle,
 } from "react-icons/fi";
+import API_URL from "../config";
+import { apiFetch } from "../api";
 import "./Journaling.css";
 
 const MOODS = [
@@ -26,19 +28,22 @@ const PROMPTS = [
   "One thing I learned today",
 ];
 
-
 function Journaling({ userId }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [mood, setMood] = useState(null);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState(null); // { type: 'success' | 'error', message: '' }
+  const [toast, setToast] = useState(null);
   const [history, setHistory] = useState([]);
   const [fetching, setFetching] = useState(true);
 
   // Update time every minute
   useEffect(() => {
-    const timer = setInterval(() => setCurrentDate(new Date()), 60000);
+    const timer = setInterval(
+      () => setCurrentDate(new Date()),
+      60000
+    );
+
     return () => clearInterval(timer);
   }, []);
 
@@ -46,86 +51,133 @@ function Journaling({ userId }) {
   useEffect(() => {
     const fetchJournals = async () => {
       if (!userId) return;
+
       setFetching(true);
+
       try {
-        const res = await fetch(`http://127.0.0.1:8000/journals/${userId}`);
-        const data = await res.json();
+        const res = await apiFetch(
+          `${API_URL}/journals/${userId}`
+        );
+
+        const data = res;
+
         if (data.success) {
           setHistory(data.journals);
         }
       } catch (err) {
         console.error("Failed to fetch journals", err);
-        setToast({ type: "error", message: "Failed to load journals" });
+
+        setToast({
+          type: "error",
+          message: "Failed to load journals",
+        });
       } finally {
         setFetching(false);
       }
     };
+
     fetchJournals();
   }, [userId]);
 
   // Clear toast after 3 seconds
   useEffect(() => {
     if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
+      const timer = setTimeout(
+        () => setToast(null),
+        3000
+      );
+
       return () => clearTimeout(timer);
     }
   }, [toast]);
 
   const handlePromptClick = (prompt) => {
-    setContent((prev) => (prev ? `${prev}\n\n${prompt} ` : `${prompt} `));
+    setContent((prev) =>
+      prev
+        ? `${prev}\n\n${prompt} `
+        : `${prompt} `
+    );
   };
 
   const saveJournal = async () => {
     if (!mood) {
-      setToast({ type: "error", message: "Please select a mood first!" });
+      setToast({
+        type: "error",
+        message: "Please select a mood first!",
+      });
+
       return;
     }
+
     if (!content.trim()) {
-      setToast({ type: "error", message: "Journal content cannot be empty!" });
+      setToast({
+        type: "error",
+        message: "Journal content cannot be empty!",
+      });
+
       return;
     }
 
     setLoading(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/journal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userId,
-          mood: mood.id,
-          content: content,
-        }),
-      });
-      const data = await res.json();
+      const res = await apiFetch(
+        `${API_URL}/journal`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            mood: mood.id,
+            content: content,
+          }),
+        }
+      );
+
+      const data = res;
 
       if (data.success) {
-        setToast({ type: "success", message: "Journal saved successfully!" });
+        setToast({
+          type: "success",
+          message: "Journal saved successfully!",
+        });
+
         setMood(null);
         setContent("");
+
         // Refresh history
-        const refreshRes = await fetch(
-          `http://127.0.0.1:8000/journals/${userId}`,
+        const refreshRes = await apiFetch(
+          `${API_URL}/journals/${userId}`
         );
-        const refreshData = await refreshRes.json();
+
+        const refreshData =
+          refreshRes;
+
         if (refreshData.success) {
           setHistory(refreshData.journals);
         }
       } else {
         setToast({
           type: "error",
-          message: data.message || "Failed to save journal",
+          message:
+            data.message || "Failed to save journal",
         });
       }
     } catch (err) {
       console.error("Failed to save journal", err);
-      setToast({ type: "error", message: "Server error while saving" });
+
+      setToast({
+        type: "error",
+        message: "Server error while saving",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const getMoodObj = (id) => MOODS.find((m) => m.id === id);
+  const getMoodObj = (id) =>
+    MOODS.find((m) => m.id === id);
 
   return (
     <div className="journaling-container">
@@ -135,20 +187,31 @@ function Journaling({ userId }) {
           <h1>
             <FiEdit3 /> Journaling
           </h1>
+
           <p className="date-display">
             <FiCalendar />{" "}
-            {currentDate.toLocaleDateString("en-IN", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-            <span className="time-separator">•</span>
+            {currentDate.toLocaleDateString(
+              "en-IN",
+              {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              }
+            )}
+
+            <span className="time-separator">
+              •
+            </span>
+
             <FiClock />{" "}
-            {currentDate.toLocaleTimeString("en-IN", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {currentDate.toLocaleTimeString(
+              "en-IN",
+              {
+                hour: "2-digit",
+                minute: "2-digit",
+              }
+            )}
           </p>
         </div>
       </div>
@@ -156,21 +219,36 @@ function Journaling({ userId }) {
       {/* MOOD SELECTOR */}
       <div className="section-block">
         <h3>How are you feeling?</h3>
+
         <div className="mood-selector">
           {MOODS.map((m) => (
             <button
               key={m.id}
-              className={`mood-btn ${mood?.id === m.id ? "selected" : ""}`}
+              className={`mood-btn ${
+                mood?.id === m.id
+                  ? "selected"
+                  : ""
+              }`}
               onClick={() => setMood(m)}
               style={{
                 "--mood-color": m.color,
-                borderColor: mood?.id === m.id ? m.color : "transparent",
+                borderColor:
+                  mood?.id === m.id
+                    ? m.color
+                    : "transparent",
                 backgroundColor:
-                  mood?.id === m.id ? `${m.color}20` : "var(--bg-secondary)",
+                  mood?.id === m.id
+                    ? `${m.color}20`
+                    : "var(--bg-secondary)",
               }}
             >
-              <span className="mood-emoji">{m.emoji}</span>
-              <span className="mood-label">{m.label}</span>
+              <span className="mood-emoji">
+                {m.emoji}
+              </span>
+
+              <span className="mood-label">
+                {m.label}
+              </span>
             </button>
           ))}
         </div>
@@ -183,7 +261,9 @@ function Journaling({ userId }) {
             <button
               key={index}
               className="prompt-chip"
-              onClick={() => handlePromptClick(prompt)}
+              onClick={() =>
+                handlePromptClick(prompt)
+              }
             >
               ✨ {prompt}
             </button>
@@ -197,14 +277,21 @@ function Journaling({ userId }) {
           className="journal-textarea"
           placeholder="Write your thoughts here..."
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) =>
+            setContent(e.target.value)
+          }
         />
-        <div className="char-counter">{content.length} chars</div>
+
+        <div className="char-counter">
+          {content.length} chars
+        </div>
       </div>
 
       {/* SAVE BUTTON */}
       <button
-        className={`save-journal-btn ${loading ? "loading" : ""}`}
+        className={`save-journal-btn ${
+          loading ? "loading" : ""
+        }`}
         onClick={saveJournal}
         disabled={loading}
       >
@@ -222,30 +309,55 @@ function Journaling({ userId }) {
         <h2>
           <FiTrendingUp /> My Previous Journals
         </h2>
+
         {fetching ? (
           <p>Loading journals...</p>
         ) : history.length === 0 ? (
-          <p>No journals yet. Start writing today!</p>
+          <p>
+            No journals yet. Start writing today!
+          </p>
         ) : (
           history.map((entry) => {
             const moodObj = getMoodObj(entry.mood);
-            const dateObj = new Date(entry.created_at);
-            const formattedDate = dateObj.toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            });
+
+            const dateObj = new Date(
+              entry.created_at
+            );
+
+            const formattedDate =
+              dateObj.toLocaleDateString(
+                "en-IN",
+                {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                }
+              );
+
             const wordCount = entry.content
               .split(/\s+/)
-              .filter((w) => w.length > 0).length;
+              .filter((w) => w.length > 0)
+              .length;
+
             return (
-              <div key={entry._id} className="journal-item">
+              <div
+                key={entry._id}
+                className="journal-item"
+              >
                 <p>{entry.content}</p>
+
                 <small>
                   {formattedDate} •{" "}
-                  <span style={{ color: moodObj?.color }}>
-                    {moodObj?.emoji} {moodObj?.label}
+
+                  <span
+                    style={{
+                      color: moodObj?.color,
+                    }}
+                  >
+                    {moodObj?.emoji}{" "}
+                    {moodObj?.label}
                   </span>{" "}
+
                   • {wordCount} words
                 </small>
               </div>
@@ -256,8 +368,15 @@ function Journaling({ userId }) {
 
       {/* TOAST NOTIFICATION */}
       {toast && (
-        <div className={`toast-notification ${toast.type}`}>
-          {toast.type === "success" ? <FiCheckCircle /> : <FiAlertCircle />}
+        <div
+          className={`toast-notification ${toast.type}`}
+        >
+          {toast.type === "success" ? (
+            <FiCheckCircle />
+          ) : (
+            <FiAlertCircle />
+          )}
+
           <span>{toast.message}</span>
         </div>
       )}

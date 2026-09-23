@@ -1,321 +1,385 @@
-/* --- Layout Structure --- */
+/* ==========================================================================
+   App shell — sidebar, navbar, content region
+   ========================================================================== */
+
 .app-container {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: 100vh;
+  transition: grid-template-columns var(--t-base) var(--ease-out);
 }
 
-/* --- Sidebar Styling --- */
+.app-container.sidebar-collapsed {
+  grid-template-columns: var(--sidebar-w-collapsed) 1fr;
+}
+
+/* ------------------------------------------------------------- sidebar */
 .sidebar {
-  background-color: var(--bg-sidebar);
-  border-right: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 50;
-  box-shadow: var(--shadow-lg);
-}
-
-.sidebar-expanded .sidebar {
-  width: 260px;
-}
-
-.sidebar-collapsed .sidebar {
-  width: 80px;
+  gap: 0.5rem;
+  padding: 1.25rem 0.85rem;
+  background: var(--bg-sidebar);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-right: 1px solid var(--border-color);
+  overflow: hidden;
+  z-index: 30;
 }
 
 .sidebar-header {
-  height: 70px;
   display: flex;
   align-items: center;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border-color);
-  gap: 12px;
+  gap: 0.7rem;
+  padding: 0.4rem 0.6rem 1.25rem;
+  white-space: nowrap;
 }
 
 .app-logo {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
-  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
-}
-
-.app-logo:hover {
-  transform: rotate(360deg) scale(1.1);
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
 }
 
 .app-name {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
   font-weight: 800;
-  font-size: 1.4rem;
-  background: linear-gradient(135deg, var(--accent-color), #4cc9f0);
+  letter-spacing: -0.03em;
+  background: var(--gradient-brand);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  white-space: nowrap;
-  opacity: 1;
-  transition: opacity 0.2s;
-  letter-spacing: -0.5px;
-}
-
-.sidebar-collapsed .app-name {
-  opacity: 0;
-  width: 0;
-  overflow: hidden;
+  background-clip: text;
+  color: transparent;
+  animation: fade-up var(--t-base) var(--ease-out) both;
 }
 
 .sidebar-nav {
-  flex: 1;
-  padding: 20px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.2rem;
+  flex: 1;
   overflow-y: auto;
-}
-
-/* Hide scrollbar for sidebar nav but keep functionality */
-.sidebar-nav::-webkit-scrollbar {
-  width: 4px;
-}
-
-.sidebar-nav::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar-nav::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
-}
-
-.sidebar-nav:hover::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.5);
+  overflow-x: hidden;
+  padding-right: 2px;
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  border-radius: 16px;
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  gap: 12px;
-  font-size: 0.95rem;
-  font-weight: 600;
+  gap: 0.85rem;
   width: 100%;
-  margin-bottom: 4px;
+  padding: 0.7rem 0.85rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.925rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-align: left;
+  transition: color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+
+.nav-item svg {
+  flex-shrink: 0;
+  transition: transform var(--t-base) var(--ease-spring);
+}
+
+.nav-item:hover {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.nav-item:hover svg {
+  transform: scale(1.12);
+}
+
+.nav-item.active {
+  color: var(--text-inverse);
+  background: var(--gradient-brand);
+  box-shadow: var(--shadow-glow);
+}
+
+[data-theme="dark"] .nav-item.active {
+  color: #ffffff;
+}
+
+/* The little rail marker that slides with the active item. */
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 22px;
+  border-radius: 0 4px 4px 0;
+  background: var(--accent-color);
 }
 
 .sidebar-collapsed .nav-item {
   justify-content: center;
-  padding: 12px;
+  padding: 0.75rem;
 }
 
-.nav-item:hover {
-  background-color: var(--bg-primary);
-  color: var(--accent-color);
-  transform: translateX(4px);
-}
-
-.sidebar-collapsed .nav-item:hover {
-  transform: none;
-  background-color: var(--bg-primary);
-}
-
-.nav-item.active {
-  background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(var(--accent-color), 0.3);
-}
-
-.nav-item.active:hover {
-  transform: translateX(4px);
-  box-shadow: 0 6px 16px rgba(var(--accent-color), 0.4);
+.sidebar-collapsed .nav-item.active::before {
+  display: none;
 }
 
 .sidebar-footer {
-  padding: 20px;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--border-color);
 }
 
 .logout-btn {
-  color: #ef4444;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.925rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background var(--t-fast), color var(--t-fast);
 }
 
 .logout-btn:hover {
-  background-color: #fef2f2;
-  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
 }
 
-/* --- Main Content & Navbar --- */
+.sidebar-collapsed .logout-btn {
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+/* --------------------------------------------------------------- main */
 .main-content {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  position: relative;
-  overflow: hidden;
+  min-width: 0;
+  min-height: 100vh;
 }
 
 .navbar {
-  height: 70px;
-  flex-shrink: 0;
-  background-color: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 24px;
-  z-index: 40;
   position: sticky;
   top: 0;
-}
-
-[data-theme='dark'] .navbar {
-  background-color: rgba(30, 41, 59, 0.8);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.75rem;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .navbar-left {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 1rem;
+  min-width: 0;
 }
 
 .menu-toggle {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border-radius: 8px;
-  transition: background 0.2s;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  transition: all var(--t-fast) var(--ease-out);
 }
 
 .menu-toggle:hover {
-  background-color: var(--bg-primary);
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .page-title {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .content-scrollable {
   flex: 1;
   min-height: 0;
+  padding: 1.75rem;
   overflow-y: auto;
-  padding: 0;
-  background-color: var(--bg-primary);
+  animation: fade-up var(--t-slow) var(--ease-out) both;
 }
 
-/* Chat Mode: Disable scroll on parent, make it a flex column */
-.content-scrollable.chat-mode {
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Ensure Chat component fills the height */
-.content-scrollable.chat-mode>* {
-  flex: 1;
-  min-height: 0;
-  height: 100%;
-}
-
-/* --- Auth Styling --- */
+/* ---------------------------------------------------------- auth shell */
 .auth-layout {
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
-}
-
-[data-theme='dark'] .auth-layout {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1.5rem;
 }
 
 .auth-wrapper {
-  display: flex;
-  width: 900px;
-  height: 600px;
-  background: var(--bg-secondary);
-  border-radius: 24px;
-  box-shadow: var(--shadow-lg);
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  width: min(1040px, 100%);
   overflow: hidden;
+  border-radius: var(--radius-xl);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-lg);
+  animation: pop-in var(--t-slow) var(--ease-out) both;
 }
 
 .auth-left {
-  flex: 1;
-  background: linear-gradient(135deg, var(--accent-color), #4cc9f0);
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  padding: 40px;
-  text-align: center;
+  justify-content: space-between;
+  padding: 3rem 2.5rem 0;
+  color: #fff;
+  background: var(--gradient-brand);
+  overflow: hidden;
 }
 
-.doctor-img {
-  width: 280px;
-  height: auto;
-  z-index: 2;
-  filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.2));
-  margin-top: 2rem;
+/* Soft light bloom over the gradient so it isn't a flat colour block. */
+.auth-left::after {
+  content: "";
+  position: absolute;
+  inset: -40% -20% auto -20%;
+  height: 90%;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(255, 255, 255, 0.35),
+    transparent 65%
+  );
+  pointer-events: none;
+}
+
+.auth-welcome {
+  position: relative;
+  z-index: 1;
 }
 
 .auth-welcome h1 {
-  font-size: 2rem;
-  margin-bottom: 10px;
-  z-index: 2;
+  color: #fff;
+  font-size: clamp(1.9rem, 3vw, 2.5rem);
+  margin-bottom: 0.6rem;
 }
 
 .auth-welcome p {
-  opacity: 0.9;
-  z-index: 2;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 1.02rem;
+  max-width: 34ch;
+}
+
+.doctor-img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto;
+  display: block;
+  filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.28));
+  animation: breathe 7s ease-in-out infinite;
 }
 
 .auth-right {
-  flex: 1;
-  padding: 50px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  background-color: var(--bg-secondary);
+  display: grid;
+  place-items: center;
+  padding: 2.75rem 2.5rem;
+  background: var(--bg-secondary);
 }
 
-/* --- Mobile Responsive --- */
+/* ------------------------------------------------------------ responsive */
+@media (max-width: 900px) {
+  .auth-wrapper {
+    grid-template-columns: 1fr;
+  }
+  .auth-left {
+    display: none;
+  }
+  .auth-right {
+    padding: 2rem 1.5rem;
+  }
+}
+
 @media (max-width: 768px) {
+  .app-container,
+  .app-container.sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
   .sidebar {
-    position: absolute;
-    height: 100%;
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sidebar-w);
     transform: translateX(-100%);
+    transition: transform var(--t-base) var(--ease-out);
+    box-shadow: var(--shadow-lg);
   }
 
   .sidebar-expanded .sidebar {
-    transform: translateX(0);
-    width: 280px;
+    transform: none;
   }
 
-  .auth-wrapper {
-    width: 95%;
-    height: auto;
-    flex-direction: column;
+  .content-scrollable {
+    padding: 1rem;
   }
 
-  .auth-left {
-    padding: 30px;
-    display: none;
-    /* Hide image on small mobile for simplicity */
+  .navbar {
+    padding: 0.75rem 1rem;
   }
+}
+
+/* The Safety Lab is the flagship surface — give its nav entry a subtle
+   accent so it doesn't read as just another tab in the list. */
+.nav-item-flagship {
+  margin-top: 0.5rem;
+  position: relative;
+}
+
+.nav-item-flagship::after {
+  content: "";
+  position: absolute;
+  top: -0.3rem;
+  left: 0.85rem;
+  right: 0.85rem;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.sidebar-collapsed .nav-item-flagship::after {
+  left: 0.5rem;
+  right: 0.5rem;
+}
+
+.nav-item-flagship:not(.active) svg {
+  color: var(--accent-color);
 }

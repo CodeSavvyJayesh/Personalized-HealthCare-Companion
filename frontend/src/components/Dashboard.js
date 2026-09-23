@@ -12,6 +12,9 @@ import {
   FiTarget,
   FiBookOpen, // Added for Resources
 } from "react-icons/fi";
+import { LuDumbbell } from "react-icons/lu";
+import API_URL from "../config";
+import { apiFetch } from "../api";
 import "./Dashboard.css";
 
 function Dashboard({ onNavigate, userId, sessionId }) {
@@ -21,12 +24,16 @@ function Dashboard({ onNavigate, userId, sessionId }) {
   useEffect(() => {
     const fetchInsights = async () => {
       if (!sessionId) return;
+
       setLoadingInsights(true);
+
       try {
-        const res = await fetch(
-          `http://127.0.0.1:8000/session-report/${sessionId}`,
+        const res = await apiFetch(
+          `${API_URL}/session-report/${sessionId}`
         );
-        const data = await res.json();
+
+        const data = res;
+
         if (data.success) {
           setInsights(data);
         }
@@ -36,6 +43,7 @@ function Dashboard({ onNavigate, userId, sessionId }) {
         setLoadingInsights(false);
       }
     };
+
     fetchInsights();
   }, [sessionId]);
 
@@ -45,7 +53,7 @@ function Dashboard({ onNavigate, userId, sessionId }) {
       title: "MindWell AI",
       desc: "Chat with your personal AI therapist available 24/7.",
       icon: <FiMessageSquare size={28} />,
-      color: "#0077b6", // Fixed: Use Hex instead of var() for inline rgba alpha to work
+      color: "#0077b6",
       isPrimary: true,
     },
     {
@@ -98,6 +106,13 @@ function Dashboard({ onNavigate, userId, sessionId }) {
       color: "#3b82f6",
     },
     {
+      id: "fitness",
+      title: "Physical Fitness",
+      desc: "BMI, AI workout and diet plans, and activity tracking.",
+      icon: <LuDumbbell size={28} />,
+      color: "#f97316",
+    },
+    {
       id: "community",
       title: "Community",
       desc: "Connect with others on similar journeys.",
@@ -132,6 +147,7 @@ function Dashboard({ onNavigate, userId, sessionId }) {
       "calmSounds",
       "resources",
       "sleep",
+      "fitness",
       "community",
       "goals",
       "analytics",
@@ -140,8 +156,6 @@ function Dashboard({ onNavigate, userId, sessionId }) {
     if (implementedModules.includes(id)) {
       onNavigate(id);
     } else {
-      // Optional: You could show a toast here for "Coming Soon"
-      // For now, we just don't navigate or navigate to dashboard (no-op)
       console.log(`Module ${id} is coming soon!`);
     }
   };
@@ -150,7 +164,9 @@ function Dashboard({ onNavigate, userId, sessionId }) {
     <div className="dashboard-container">
       <div className="dashboard-header-section">
         <h1>Welcome Back!</h1>
-        <p>How are you feeling today? Explore your wellness modules.</p>
+        <p>
+          How are you feeling today? Explore your wellness modules.
+        </p>
       </div>
 
       {insights && (
@@ -158,33 +174,50 @@ function Dashboard({ onNavigate, userId, sessionId }) {
           <h2>
             <FiTrendingUp color="#6366f1" /> Session Insights
           </h2>
+
           <div className="insights-content">
             <div className="insights-stats">
               <h3>Sentiment Breakdown</h3>
+
               <div className="sentiment-counts">
                 <div className="sentiment-count positive">
                   <span className="count">
                     {insights.sentiment_summary.Positive || 0}
                   </span>
-                  <span className="label">Positive</span>
+
+                  <span className="label">
+                    Positive
+                  </span>
                 </div>
+
                 <div className="sentiment-count negative">
                   <span className="count">
                     {insights.sentiment_summary.Negative || 0}
                   </span>
-                  <span className="label">Negative</span>
+
+                  <span className="label">
+                    Negative
+                  </span>
                 </div>
+
                 <div className="sentiment-count neutral">
                   <span className="count">
                     {insights.sentiment_summary.Neutral || 0}
                   </span>
-                  <span className="label">Neutral</span>
+
+                  <span className="label">
+                    Neutral
+                  </span>
                 </div>
               </div>
             </div>
+
             <div className="insights-message">
               <h3>AI Insight</h3>
-              <p>"{insights.insight_message}"</p>
+
+              <p>
+                "{insights.insight_message}"
+              </p>
             </div>
           </div>
         </div>
@@ -194,8 +227,12 @@ function Dashboard({ onNavigate, userId, sessionId }) {
         {modules.map((module) => (
           <div
             key={module.id}
-            className={`module-card ${module.isPrimary ? "primary-card" : ""}`}
-            onClick={() => handleModuleClick(module.id)}
+            className={`module-card ${
+              module.isPrimary ? "primary-card" : ""
+            }`}
+            onClick={() =>
+              handleModuleClick(module.id)
+            }
           >
             <div
               className="card-icon"
@@ -213,7 +250,9 @@ function Dashboard({ onNavigate, userId, sessionId }) {
             </div>
 
             {module.isPrimary && (
-              <button className="primary-btn">Start Session</button>
+              <button className="primary-btn">
+                Start Session
+              </button>
             )}
           </div>
         ))}

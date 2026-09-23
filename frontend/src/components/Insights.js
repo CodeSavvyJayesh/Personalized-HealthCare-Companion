@@ -25,6 +25,8 @@ import {
 } from "recharts";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+import API_URL from "../config";
+import { apiFetch } from "../api";
 import "./Insights.css";
 
 const COLORS = ["#10b981", "#ef4444", "#9ca3af"]; // Positive, Negative, Neutral
@@ -36,10 +38,16 @@ function Insights({ userId }) {
   useEffect(() => {
     const fetchInsights = async () => {
       if (!userId) return;
+
       setLoading(true);
+
       try {
-        const res = await fetch(`http://127.0.0.1:8000/insights/${userId}`);
-        const json = await res.json();
+        const res = await apiFetch(
+          `${API_URL}/insights/${userId}`
+        );
+
+        const json = res;
+
         setData(json);
       } catch (err) {
         console.error("Error fetching insights:", err);
@@ -57,6 +65,7 @@ function Insights({ userId }) {
         <h1>
           <Skeleton width={300} />
         </h1>
+
         <p>
           <Skeleton width={400} />
         </p>
@@ -64,11 +73,25 @@ function Insights({ userId }) {
 
       <div className="top-cards-grid">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="stat-card skeleton-card">
-            <Skeleton circle width={56} height={56} />
-            <div className="stat-content" style={{ flex: 1 }}>
+          <div
+            key={i}
+            className="stat-card skeleton-card"
+          >
+            <Skeleton
+              circle
+              width={56}
+              height={56}
+            />
+
+            <div
+              className="stat-content"
+              style={{ flex: 1 }}
+            >
               <Skeleton width="60%" />
-              <Skeleton width="40%" height={32} />
+              <Skeleton
+                width="40%"
+                height={32}
+              />
             </div>
           </div>
         ))}
@@ -78,17 +101,21 @@ function Insights({ userId }) {
         <h2>
           <Skeleton width={250} />
         </h2>
+
         <div className="ai-content-grid">
           <div className="ai-section">
             <h3>
               <Skeleton width={150} />
             </h3>
+
             <Skeleton count={3} />
           </div>
+
           <div className="ai-section">
             <h3>
               <Skeleton width={150} />
             </h3>
+
             <Skeleton count={3} />
           </div>
         </div>
@@ -96,10 +123,14 @@ function Insights({ userId }) {
 
       <div className="charts-grid">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="insight-card chart-card skeleton-card">
+          <div
+            key={i}
+            className="insight-card chart-card skeleton-card"
+          >
             <h2>
               <Skeleton width={200} />
             </h2>
+
             <Skeleton height={200} />
           </div>
         ))}
@@ -112,7 +143,9 @@ function Insights({ userId }) {
   if (!data) {
     return (
       <div className="insights-container">
-        <div className="loading-state">Failed to load insights.</div>
+        <div className="loading-state">
+          Failed to load insights.
+        </div>
       </div>
     );
   }
@@ -126,17 +159,36 @@ function Insights({ userId }) {
     (data?.productivity?.completed_goals || 0);
 
   const taskRate =
-    totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+    totalItems > 0
+      ? Math.round(
+          (completedItems / totalItems) * 100
+        )
+      : 0;
 
   const taskPieData = [
-    { name: "Completed", value: completedItems },
-    { name: "Pending", value: totalItems - completedItems },
+    {
+      name: "Completed",
+      value: completedItems,
+    },
+    {
+      name: "Pending",
+      value: totalItems - completedItems,
+    },
   ];
 
   const sentimentData = [
-    { name: "Positive", value: data.sentiment.positive },
-    { name: "Negative", value: data.sentiment.negative },
-    { name: "Neutral", value: data.sentiment.neutral },
+    {
+      name: "Positive",
+      value: data.sentiment.positive,
+    },
+    {
+      name: "Negative",
+      value: data.sentiment.negative,
+    },
+    {
+      name: "Neutral",
+      value: data.sentiment.neutral,
+    },
   ];
 
   return (
@@ -145,7 +197,11 @@ function Insights({ userId }) {
         <h1>
           <FiTrendingUp /> Wellness Analytics
         </h1>
-        <p>Your personalized mental health and productivity dashboard.</p>
+
+        <p>
+          Your personalized mental health and
+          productivity dashboard.
+        </p>
       </div>
 
       {/* Top Cards */}
@@ -154,11 +210,15 @@ function Insights({ userId }) {
           <div className="stat-icon mood">
             <FiSmile />
           </div>
+
           <div className="stat-content">
             <h3>Mood Score</h3>
+
             <div className="stat-value">
               {data.mood_score}
-              <span className="stat-unit">/100</span>
+              <span className="stat-unit">
+                /100
+              </span>
             </div>
           </div>
         </div>
@@ -167,11 +227,16 @@ function Insights({ userId }) {
           <div className="stat-icon stress">
             <FiZap />
           </div>
+
           <div className="stat-content">
             <h3>Stress Streak</h3>
+
             <div className="stat-value">
               {data.stress_streak}
-              <span className="stat-unit"> days</span>
+              <span className="stat-unit">
+                {" "}
+                days
+              </span>
             </div>
           </div>
         </div>
@@ -180,11 +245,16 @@ function Insights({ userId }) {
           <div className="stat-icon sleep">
             <FiMoon />
           </div>
+
           <div className="stat-content">
             <h3>Sleep Avg</h3>
+
             <div className="stat-value">
               {data.sleep.average}
-              <span className="stat-unit"> hrs</span>
+              <span className="stat-unit">
+                {" "}
+                hrs
+              </span>
             </div>
           </div>
         </div>
@@ -193,11 +263,15 @@ function Insights({ userId }) {
           <div className="stat-icon productivity">
             <FiTarget />
           </div>
+
           <div className="stat-content">
             <h3>Productivity</h3>
+
             <div className="stat-value">
               {data.productivity.overall_productivity}
-              <span className="stat-unit">%</span>
+              <span className="stat-unit">
+                %
+              </span>
             </div>
           </div>
         </div>
@@ -209,37 +283,49 @@ function Insights({ userId }) {
           <div className="ai-icon-wrapper">
             <FiMessageSquare />
           </div>
+
           <h2>AI Wellness Insights</h2>
         </div>
 
         {data.insights.length > 0 && (
           <div className="ai-highlight-box">
-            <strong>Key Insight:</strong> {data.insights[0]}
+            <strong>Key Insight:</strong>{" "}
+            {data.insights[0]}
           </div>
         )}
 
         <div className="ai-content-grid">
           <div className="ai-section">
             <h3>
-              <FiActivity className="section-icon" /> Key Observations
+              <FiActivity className="section-icon" />
+              Key Observations
             </h3>
+
             <ul>
-              {data.insights.slice(1).map((insight, idx) => (
-                <li key={idx}>{insight}</li>
-              ))}
+              {data.insights
+                .slice(1)
+                .map((insight, idx) => (
+                  <li key={idx}>{insight}</li>
+                ))}
             </ul>
           </div>
+
           <div className="ai-section">
             <h3>
-              <FiStar className="section-icon" /> Suggestions for You
+              <FiStar className="section-icon" />
+              Suggestions for You
             </h3>
+
             <ul className="suggestions-list">
-              {data.suggestions.map((suggestion, idx) => (
-                <li key={idx}>
-                  <FiCheckCircle className="suggestion-icon" />
-                  <span>{suggestion}</span>
-                </li>
-              ))}
+              {data.suggestions.map(
+                (suggestion, idx) => (
+                  <li key={idx}>
+                    <FiCheckCircle className="suggestion-icon" />
+
+                    <span>{suggestion}</span>
+                  </li>
+                )
+              )}
             </ul>
           </div>
         </div>
@@ -247,29 +333,43 @@ function Insights({ userId }) {
 
       {/* Charts Grid */}
       <div className="charts-grid">
+
         {/* Mood Trend */}
         <div className="insight-card chart-card">
           <h2>
             <FiTrendingUp /> Mood Trend (Last 7 Days)
           </h2>
+
           <div className="chart-wrapper">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+            >
               <LineChart
                 data={data.mood_trend}
-                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                margin={{
+                  top: 10,
+                  right: 10,
+                  left: -20,
+                  bottom: 0,
+                }}
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
                   stroke="var(--border-color)"
                 />
+
                 <XAxis
                   dataKey="date"
                   stroke="var(--text-secondary)"
                   fontSize={12}
                   tickLine={false}
-                  tickFormatter={(val) => val.substring(5)}
+                  tickFormatter={(val) =>
+                    val.substring(5)
+                  }
                 />
+
                 <YAxis
                   domain={[0, 100]}
                   stroke="var(--text-secondary)"
@@ -277,14 +377,20 @@ function Insights({ userId }) {
                   tickLine={false}
                   axisLine={false}
                 />
+
                 <Tooltip
                   contentStyle={{
                     borderRadius: "12px",
                     border: "none",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                    boxShadow:
+                      "0 8px 24px rgba(0,0,0,0.12)",
                   }}
-                  formatter={(value) => [`${value}/100`, `Mood Score`]}
+                  formatter={(value) => [
+                    `${value}/100`,
+                    `Mood Score`,
+                  ]}
                 />
+
                 <Line
                   type="monotone"
                   dataKey="score"
@@ -308,8 +414,12 @@ function Insights({ userId }) {
           <h2>
             <FiSmile /> Sentiment Distribution
           </h2>
+
           <div className="chart-wrapper pie-wrapper">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+            >
               <PieChart>
                 <Pie
                   data={sentimentData}
@@ -320,35 +430,70 @@ function Insights({ userId }) {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {sentimentData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
+                  {sentimentData.map(
+                    (entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={
+                          COLORS[
+                            index % COLORS.length
+                          ]
+                        }
+                      />
+                    )
+                  )}
                 </Pie>
+
                 <Tooltip
                   contentStyle={{
                     borderRadius: "12px",
                     border: "none",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                    boxShadow:
+                      "0 8px 24px rgba(0,0,0,0.12)",
                   }}
-                  formatter={(value) => [`${value}%`, `Sentiment`]}
+                  formatter={(value) => [
+                    `${value}%`,
+                    `Sentiment`,
+                  ]}
                 />
               </PieChart>
             </ResponsiveContainer>
+
             <div className="pie-legend">
               <div className="legend-item">
-                <span className="dot" style={{ background: COLORS[0] }}></span>
-                Positive ({data.sentiment.positive}%)
+                <span
+                  className="dot"
+                  style={{
+                    background: COLORS[0],
+                  }}
+                ></span>
+
+                Positive (
+                {data.sentiment.positive}%)
               </div>
+
               <div className="legend-item">
-                <span className="dot" style={{ background: COLORS[1] }}></span>
-                Negative ({data.sentiment.negative}%)
+                <span
+                  className="dot"
+                  style={{
+                    background: COLORS[1],
+                  }}
+                ></span>
+
+                Negative (
+                {data.sentiment.negative}%)
               </div>
+
               <div className="legend-item">
-                <span className="dot" style={{ background: COLORS[2] }}></span>
-                Neutral ({data.sentiment.neutral}%)
+                <span
+                  className="dot"
+                  style={{
+                    background: COLORS[2],
+                  }}
+                ></span>
+
+                Neutral (
+                {data.sentiment.neutral}%)
               </div>
             </div>
           </div>
@@ -363,19 +508,27 @@ function Insights({ userId }) {
           {totalItems > 0 ? (
             <div
               className="chart-wrapper pie-wrapper"
-              style={{ position: "relative" }}
+              style={{
+                position: "relative",
+              }}
             >
-              {/* ✅ CENTER TEXT */}
+              {/* CENTER TEXT */}
               <div
                 className="chart-center-text"
                 style={{
-                  color: taskRate > 50 ? "#10b981" : "#ef4444",
+                  color:
+                    taskRate > 50
+                      ? "#10b981"
+                      : "#ef4444",
                 }}
               >
                 {taskRate}%
               </div>
 
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer
+                width="100%"
+                height={220}
+              >
                 <PieChart>
                   <Pie
                     data={taskPieData}
@@ -396,30 +549,42 @@ function Insights({ userId }) {
                     contentStyle={{
                       borderRadius: "12px",
                       border: "none",
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                      boxShadow:
+                        "0 8px 24px rgba(0,0,0,0.12)",
                     }}
-                    formatter={(value, name) => [`${value} items`, name]}
+                    formatter={(value, name) => [
+                      `${value} items`,
+                      name,
+                    ]}
                   />
                 </PieChart>
               </ResponsiveContainer>
 
-              {/* ✅ LEGEND */}
+              {/* LEGEND */}
               <div className="pie-legend">
                 <div className="legend-item">
                   <span
                     className="dot"
-                    style={{ background: "#3b82f6" }}
+                    style={{
+                      background: "#3b82f6",
+                    }}
                   ></span>
+
                   Completed ({completedItems})
                 </div>
+
                 <div className="legend-item">
                   <span
                     className="dot"
-                    style={{ background: "#e5e7eb" }}
+                    style={{
+                      background: "#e5e7eb",
+                    }}
                   ></span>
+
                   Pending task (
                   {data.productivity.total_tasks -
-                    data.productivity.completed_tasks}
+                    data.productivity
+                      .completed_tasks}
                   )
                 </div>
               </div>
@@ -427,7 +592,9 @@ function Insights({ userId }) {
           ) : (
             <div className="empty-chart">
               <p>No tasks yet</p>
-              <span>Add tasks to track productivity 🚀</span>
+              <span>
+                Add tasks to track productivity 🚀
+              </span>
             </div>
           )}
         </div>

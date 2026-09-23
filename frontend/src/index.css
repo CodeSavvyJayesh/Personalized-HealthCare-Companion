@@ -1,79 +1,386 @@
+/* ==========================================================================
+   MindWell — design tokens & base
+   One source of truth for colour, elevation, motion and rhythm. Every
+   component pulls from these variables, so the whole app re-themes from
+   this file alone.
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap");
+
 :root {
-  /* Light Mode Variables */
-  --bg-primary: #f0f4f8;
+  /* ---- brand ramp ---- */
+  --brand-50: #eef6ff;
+  --brand-100: #d9ecff;
+  --brand-200: #bcdcff;
+  --brand-300: #8ec6ff;
+  --brand-400: #59a6ff;
+  --brand-500: #3385fb;
+  --brand-600: #1d66f0;
+  --brand-700: #1a51dc;
+  --brand-800: #1c44b2;
+  --brand-900: #1d3d8c;
+
+  --calm-400: #67e8f9;
+  --calm-500: #22d3ee;
+  --violet-400: #a78bfa;
+  --violet-500: #8b5cf6;
+  --mint-400: #4ade80;
+  --rose-400: #fb7185;
+  --amber-400: #fbbf24;
+
+  /* ---- semantic ---- */
+  --bg-primary: #f4f7fd;
   --bg-secondary: #ffffff;
-  --bg-sidebar: #ffffff;
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --accent-color: #0077b6;
-  --accent-hover: #023e8a;
-  --border-color: #e2e8f0;
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.5);
+  --bg-sidebar: rgba(255, 255, 255, 0.72);
+  --bg-elevated: #ffffff;
+  --bg-subtle: #f8fafc;
 
-  /* Chat Specific */
-  --chat-user-bg: #0077b6;
+  --text-primary: #0f172a;
+  --text-secondary: #5b6b84;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
+
+  --accent-color: var(--brand-600);
+  --accent-hover: var(--brand-700);
+  --accent-soft: var(--brand-50);
+
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  --border-color: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+
+  /* ---- glass ---- */
+  --glass-bg: rgba(255, 255, 255, 0.68);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-blur: saturate(180%) blur(20px);
+
+  /* ---- elevation: tinted, not grey, so cards feel lit rather than dirty ---- */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.1);
+  --shadow-glow: 0 12px 32px rgba(29, 102, 240, 0.28);
+
+  /* ---- gradients ---- */
+  --gradient-brand: linear-gradient(135deg, #1d66f0 0%, #6f5bf6 50%, #22d3ee 100%);
+  --gradient-warm: linear-gradient(135deg, #fb7185 0%, #fbbf24 100%);
+  --gradient-calm: linear-gradient(135deg, #22d3ee 0%, #3385fb 100%);
+  --gradient-surface: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.6) 100%
+  );
+
+  /* ---- shape & motion ---- */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 999px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t-fast: 140ms;
+  --t-base: 240ms;
+  --t-slow: 420ms;
+
+  --font-display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* ---- chat ---- */
+  --chat-user-bg: var(--gradient-brand);
   --chat-user-text: #ffffff;
-  --chat-bot-bg: #e2e8f0;
-  --chat-bot-text: #1e293b;
+  --chat-bot-bg: rgba(255, 255, 255, 0.86);
+  --chat-bot-text: #0f172a;
+
+  --sidebar-w: 264px;
+  --sidebar-w-collapsed: 84px;
 }
 
-[data-theme='dark'] {
-  /* Dark Mode Variables */
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-sidebar: #1e293b;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --accent-color: #38bdf8;
-  --accent-hover: #0ea5e9;
-  --border-color: #334155;
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
-  --glass-bg: rgba(30, 41, 59, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.1);
+[data-theme="dark"] {
+  --bg-primary: #080c18;
+  --bg-secondary: #101728;
+  --bg-sidebar: rgba(16, 23, 40, 0.72);
+  --bg-elevated: #151d31;
+  --bg-subtle: #0d1424;
 
-  /* Chat Specific */
-  --chat-user-bg: #38bdf8;
-  --chat-user-text: #0f172a;
-  --chat-bot-bg: #334155;
-  --chat-bot-text: #f1f5f9;
-}
+  --text-primary: #eef2f9;
+  --text-secondary: #9fb0c9;
+  --text-muted: #64748b;
 
-body {
-  margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  transition: background-color 0.3s ease, color 0.3s ease;
-  overflow-x: hidden;
-}
+  --accent-color: #5b9dff;
+  --accent-hover: #8ec6ff;
+  --accent-soft: rgba(91, 157, 255, 0.14);
 
-/* Scrollbar Styling */
-::-webkit-scrollbar {
-  width: 8px;
-}
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+  --glass-bg: rgba(21, 29, 49, 0.66);
+  --glass-border: rgba(255, 255, 255, 0.08);
 
-::-webkit-scrollbar-thumb {
-  background: var(--text-secondary);
-  border-radius: 4px;
-  opacity: 0.5;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 12px 40px rgba(91, 157, 255, 0.3);
+
+  --gradient-surface: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+
+  --chat-bot-bg: rgba(21, 29, 49, 0.9);
+  --chat-bot-text: #eef2f9;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  transition: background-color var(--t-slow) var(--ease-out),
+    color var(--t-slow) var(--ease-out);
+}
+
+/* Ambient light. Two slow-drifting colour fields behind everything —
+   this is what stops the app reading as "bootstrap dashboard". */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+body::before {
+  width: 46vw;
+  height: 46vw;
+  top: -14vw;
+  left: -10vw;
+  background: radial-gradient(circle, rgba(51, 133, 251, 0.5), transparent 70%);
+  animation: drift-a 26s var(--ease-out) infinite alternate;
+}
+
+body::after {
+  width: 40vw;
+  height: 40vw;
+  bottom: -14vw;
+  right: -8vw;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.42), transparent 70%);
+  animation: drift-b 32s var(--ease-out) infinite alternate;
+}
+
+[data-theme="dark"] body::before,
+[data-theme="dark"] body::after {
+  opacity: 0.32;
+}
+
+@keyframes drift-a {
+  to {
+    transform: translate3d(8vw, 6vh, 0) scale(1.15);
+  }
+}
+
+@keyframes drift-b {
+  to {
+    transform: translate3d(-7vw, -5vh, 0) scale(1.1);
+  }
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0 0 0.5em;
+}
+
+h1 {
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  letter-spacing: -0.03em;
+}
+h2 {
+  font-size: clamp(1.35rem, 2.2vw, 1.7rem);
+}
+h3 {
+  font-size: 1.15rem;
+}
+
+p {
+  margin: 0 0 1em;
+  color: var(--text-secondary);
+}
+
+a {
+  color: var(--accent-color);
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease-out);
+}
+a:hover {
+  color: var(--accent-hover);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out), background var(--t-fast);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+/* Visible focus for keyboard users, invisible for mouse users. */
+:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 3px;
+}
+
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875em;
+  background: var(--accent-soft);
+  color: var(--accent-color);
+  padding: 0.15em 0.45em;
+  border-radius: 6px;
+}
+
+/* ---------- reusable surfaces ---------- */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.gradient-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---------- scrollbars ---------- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+  background-clip: content-box;
+}
+
+/* ---------- shared animations ---------- */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+.fade-up {
+  animation: fade-up var(--t-slow) var(--ease-out) both;
+}
+
+/* Respect the OS setting. Motion is decoration; it must never be the
+   reason someone can't use a mental health app. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
