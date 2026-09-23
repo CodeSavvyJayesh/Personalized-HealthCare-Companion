@@ -58,6 +58,12 @@ sleep_collection = db["sleep_records"]
 community_collection = db["community_posts"]
 goals_collection = db["goals"]
 
+# Physical fitness module.
+fitness_profiles_collection = db["fitness_profiles"]   # one per user
+fitness_metrics_collection = db["fitness_metrics"]     # weight/BMI history
+fitness_plans_collection = db["fitness_plans"]         # generated plans
+fitness_workouts_collection = db["fitness_workouts"]   # completed sessions
+
 # OTPs used to live in a process-local dict, so every restart logged people
 # out of the signup flow and a second worker never saw the first one's codes.
 otp_collection = db["otps"]
@@ -96,8 +102,15 @@ def ensure_indexes() -> None:
             tasks_collection,
             sleep_collection,
             goals_collection,
+            fitness_metrics_collection,
+            fitness_plans_collection,
+            fitness_workouts_collection,
         ):
             coll.create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
+
+        fitness_profiles_collection.create_index(
+            [("user_id", ASCENDING)], unique=True
+        )
 
         meditation_collection.create_index(
             [("user_id", ASCENDING), ("date", ASCENDING)], unique=True

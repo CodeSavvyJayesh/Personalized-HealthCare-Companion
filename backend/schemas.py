@@ -119,3 +119,48 @@ class OkOut(BaseModel):
 
 
 Sentiment = Literal["POSITIVE", "NEGATIVE", "NEUTRAL"]
+
+
+# ---------------------------------------------------------------- fitness
+ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
+FitnessGoal = Literal["lose", "maintain", "gain", "fitness"]
+DietPreference = Literal["veg", "eggetarian", "non_veg", "vegan", "jain"]
+
+
+class FitnessProfileIn(BaseModel):
+    age: int = Field(ge=13, le=100)
+    sex: Literal["male", "female", "other"]
+    height_cm: float = Field(ge=100, le=250)
+    weight_kg: float = Field(ge=25, le=350)
+    activity_level: ActivityLevel = "light"
+    goal: FitnessGoal = "maintain"
+    experience: Literal["beginner", "intermediate", "advanced"] = "beginner"
+    equipment: Literal["none", "home", "gym"] = "none"
+    days_per_week: int = Field(default=3, ge=2, le=6)
+    session_minutes: int = Field(default=40, ge=15, le=120)
+    diet_preference: DietPreference = "veg"
+    cuisine: str = Field(default="Indian", max_length=40)
+    injuries: str = Field(default="", max_length=300)
+    bmi_standard: Literal["asian", "who"] = "asian"
+
+
+class WeightIn(BaseModel):
+    weight_kg: float = Field(ge=25, le=350)
+
+
+class FitnessPlanIn(BaseModel):
+    language: str = "en-US"
+
+
+class WorkoutLogIn(BaseModel):
+    activity: str = Field(min_length=1, max_length=80)
+    category: Literal["strength", "cardio", "hiit", "yoga", "walk", "sports", "other"] = "strength"
+    duration_min: int = Field(ge=1, le=600)
+    intensity: Literal["low", "moderate", "high"] = "moderate"
+    notes: str = Field(default="", max_length=500)
+    plan_day: str | None = Field(default=None, max_length=12)
+
+
+class CoachIn(BaseModel):
+    question: str = Field(min_length=2, max_length=1000)
+    language: str = "en-US"
