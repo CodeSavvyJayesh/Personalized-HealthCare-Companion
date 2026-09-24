@@ -5,7 +5,8 @@ is useful, but it is never the last line of defence.**
 
 MindWell pairs an empathetic LLM companion with a deterministic,
 benchmarked crisis-safety layer, conversational memory, strict per-user
-data isolation, and a full **Physical Fitness** module – BMI and body
+data isolation, a **Personal Health Twin** that learns what affects each
+user, and a full **Physical Fitness** module – BMI and body
 metrics, AI-generated workout and diet plans, activity tracking and an AI
 coach. Available in English, Hindi and Marathi.
 
@@ -20,6 +21,7 @@ coach. Available in English, Hindi and Marathi.
 - [Features](#features)
 - [Crisis-safety layer](#crisis-safety-layer)
 - [The benchmark](#the-benchmark)
+- [Personal Health Twin](#personal-health-twin)
 - [Physical Fitness module](#physical-fitness-module)
 - [Architecture](#architecture)
 - [Project structure](#project-structure)
@@ -36,6 +38,7 @@ coach. Available in English, Hindi and Marathi.
 
 | Module | What it does |
 |---|---|
+| **My Health Twin** | Daily Wellness Score, personal "what affects you" insights, early warning, today's plan, weekly AI report |
 | **Therapist AI** | Empathetic chat with memory, voice input/output, English / Hindi / Marathi |
 | **Safety Lab** | Live, inspectable view of the crisis classifier and its benchmark |
 | **Physical Fitness** | BMI, BMR/TDEE, macros, AI workout + diet plans, activity log, AI coach |
@@ -150,6 +153,39 @@ python evals/scorer.py     # full report
 
 ---
 
+## Personal Health Twin
+
+The flagship of "personalized": instead of a dozen separate trackers, the
+Health Twin reads everything the user already logs – mood, sleep, workouts,
+meditation, journaling, chat sentiment and tasks – learns *their* patterns,
+and turns them into one daily picture and a plan.
+
+| Feature | How it works |
+|---|---|
+| **Wellness Score (0–100)** | Mood 30%, Sleep 25%, Activity 20%, Mindfulness 10%, Consistency 15%. Recent days weigh more. Areas a user never tracks are **left out and re-weighted**, not counted as zero. 30-day trend and change vs last week. |
+| **What affects you** | Personal effect sizes (Cohen's d) from the user's own days – e.g. *"Your mood is 28 points higher on days you work out"*, *"After less than 6 h of sleep, your energy drops"*. Each insight shows sample sizes and a confidence level (strong / moderate / emerging); weak or tiny-sample effects are never shown. |
+| **Early warning** | Compares the last 5 days with the user's own 21-day baseline across mood, sleep, activity, mindfulness, energy and chat tone. Several signals sliding together raises a gentle *watch* or *alert* before a rough week sets in. |
+| **Today's plan** | Three actions picked from the current state: a lighter walk after short sleep, today's session from the fitness plan on good days, breathing and journaling when mood is low, a wind-down when sleep is short. Each action says *why*, links to the right module and can be ticked off. |
+| **Weekly AI report** | This week vs last week for every metric, wins, slips and one focus for next week, written by the LLM in English, Hindi or Marathi – with a template fallback. |
+| **Dashboard card** | Score ring, today's summary and the next action on the home screen. |
+
+Design principles:
+
+- **Deterministic numbers, AI prose.** Scores, correlations and warnings are
+  pure, unit-tested functions (`twin_engine.py`); the model only writes the
+  weekly narrative from aggregate numbers.
+- **Privacy by construction.** The twin never loads journal text or chat
+  text – only dates, mood labels and sentiment labels – and a test enforces
+  it.
+- **Honest statistics.** Insights are labelled as patterns, not causes, and
+  same-day vs next-day duplicates are collapsed so one routine doesn't show
+  up as two findings.
+- **Connected to the safety layer.** If the crisis classifier escalated
+  recently, the twin shows helplines gently – it is never part of the score
+  and never mentioned in the AI report.
+
+---
+
 ## Physical Fitness module
 
 BMI calculation, AI-built workout and diet plans, activity tracking and an
@@ -226,6 +262,7 @@ React 19 SPA  ──JWT──▶  FastAPI  ──▶  MongoDB Atlas
                            ├─▶ DistilBERT          (3-class sentiment)
                            ├─▶ Memory              (window + rolling summary)
                            ├─▶ Fitness engine      (deterministic metrics + plan validator)
+                           ├─▶ Health Twin engine  (score, correlations, early warning, daily plan)
                            └─▶ LLM                 (any OpenAI-compatible endpoint)
 ```
 
@@ -271,6 +308,8 @@ ai-mental-health-chatbot/
 │   ├── fitness.py           # fitness API routes
 │   ├── fitness_calc.py      # BMI, BMR, TDEE, macros, guardrails (pure functions)
 │   ├── fitness_library.py   # exercise/meal library, AI prompt, plan validator
+│   ├── twin.py              # Health Twin API
+│   ├── twin_engine.py       # wellness score, insights, early warning, daily plan
 │   ├── analytic.py          # insights and analytics
 │   ├── memory.py            # conversation window + rolling summary
 │   ├── sentiment.py         # DistilBERT sentiment
@@ -282,7 +321,7 @@ ai-mental-health-chatbot/
 ├── frontend/
 │   ├── src/
 │   │   ├── App.js  api.js  config.js  ThemeContext.js
-│   │   └── components/      # Chat, Fitness, SafetyLab, MoodTracker, …
+│   │   └── components/      # HealthTwin, Chat, Fitness, SafetyLab, MoodTracker, …
 │   ├── public/sounds/       # Calm Sounds audio
 │   ├── Dockerfile  nginx.conf
 └── docker-compose.yml
@@ -354,6 +393,7 @@ default. See [`backend/.env.example`](backend/.env.example).
 | `EMAIL_FROM`, `EMAIL_PASSWORD`, `SMTP_HOST`, `SMTP_PORT` | OTP emails |
 | `RATE_LIMIT_*` | Request limits |
 | `CRISIS_REGION` | Helpline region (default `IN`) |
+| `TZ_OFFSET_MINUTES` | What "today" means for daily scores (default `330`, IST) |
 
 Switching LLM providers is two lines of `.env`, not a code change:
 
@@ -382,6 +422,7 @@ Full interactive docs are at `/docs`.
 | Community | `GET/POST /community/posts`, `POST /community/posts/{id}/like` |
 | Safety | `GET /safety/benchmark`, `GET /safety/taxonomy`, `POST /safety/classify`, `GET /safety/events/summary` |
 | Fitness | `GET /fitness/profile/{user_id}`, `PUT /fitness/profile`, `POST /fitness/weight`, `POST /fitness/plan`, `GET /fitness/plan/{user_id}`, `POST/GET /fitness/workouts`, `DELETE /fitness/workouts/{id}`, `POST /fitness/coach` |
+| Health Twin | `GET /twin/overview/{user_id}`, `POST /twin/actions/{action_id}/toggle`, `POST /twin/report`, `GET /twin/report/{user_id}` |
 | Privacy | `GET /me/export`, `DELETE /me` |
 | Ops | `GET /health` |
 
@@ -396,7 +437,9 @@ pytest tests -q
 ```
 
 The suite covers auth, memory, sentiment, the safety red-team set, the
-crisis benchmark CI gate, and the fitness module (calculations, guardrails,
+crisis benchmark CI gate, the Health Twin (score maths, planted-pattern
+detection, early warning, plan selection, and a privacy test proving journal
+and chat text are never loaded), and the fitness module (calculations, guardrails,
 diet-preference filtering, AI plan validation and the API flow against an
 in-memory MongoDB).
 
@@ -408,7 +451,7 @@ in-memory MongoDB).
   match the token.
 - Safety audit logs store patterns and message length, never the message.
 - **Data export** (`GET /me/export`) returns everything stored about the
-  user, including fitness data.
+  user, including fitness and Health Twin data.
 - **Account deletion** (`DELETE /me`) hard-deletes all of it.
 
 ---
@@ -421,7 +464,7 @@ in-memory MongoDB).
 - Fine-tuned multi-label emotion model to replace the binary head
 - Field-level encryption for journals and messages
 - Wearable / step-count integration for the fitness module
-- Mood ↔ activity correlation in Insights
+- Health Twin: push notifications for early warnings and daily plans
 
 ---
 

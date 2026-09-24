@@ -90,6 +90,11 @@ class Settings:
     # ---------- safety ----------
     CRISIS_REGION: str = os.getenv("CRISIS_REGION", "IN")
 
+    # ---------- health twin ----------
+    # Offset used to decide what "today" means for daily scores.
+    # 330 = IST (UTC+5:30).
+    TZ_OFFSET_MINUTES: int = int(os.getenv("TZ_OFFSET_MINUTES", "330"))
+
 
 @lru_cache
 def get_settings() -> Settings:

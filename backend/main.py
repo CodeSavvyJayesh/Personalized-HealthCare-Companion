@@ -22,6 +22,7 @@ import safety
 import sentiment
 from analytic import router as analytic_router
 from fitness import router as fitness_router
+from twin import router as twin_router
 from safety_api import router as safety_router
 from auth import (
     REFRESH,
@@ -44,6 +45,8 @@ from db import (
     fitness_plans_collection,
     fitness_profiles_collection,
     fitness_workouts_collection,
+    twin_actions_collection,
+    twin_reports_collection,
     goals_collection,
     journals_collection,
     meditation_collection,
@@ -90,7 +93,7 @@ logging.basicConfig(
 
 _app_level = logging.DEBUG if settings.DEBUG else logging.INFO
 for _name in ("mindwell", "main", "auth", "db", "llm", "memory", "safety",
-              "sentiment", "analytic", "fitness", "utils", "uvicorn.error"):
+              "sentiment", "analytic", "fitness", "twin", "utils", "uvicorn.error"):
     logging.getLogger(_name).setLevel(_app_level)
 
 log = logging.getLogger("mindwell")
@@ -135,6 +138,7 @@ app.add_middleware(
 app.include_router(analytic_router)
 app.include_router(safety_router)
 app.include_router(fitness_router)
+app.include_router(twin_router)
 
 SYSTEM_PROMPT = """
 You are MindWell, an empathetic, calm, emotionally supportive mental health
@@ -780,6 +784,8 @@ def export_my_data(current_user: str = Depends(get_current_user)):
         "fitness_metrics": dump(fitness_metrics_collection),
         "fitness_plans": dump(fitness_plans_collection),
         "fitness_workouts": dump(fitness_workouts_collection),
+        "health_twin_actions": dump(twin_actions_collection),
+        "health_twin_reports": dump(twin_reports_collection),
     }
 
 
@@ -799,6 +805,8 @@ def delete_my_account(current_user: str = Depends(get_current_user)) -> OkOut:
         fitness_metrics_collection,
         fitness_plans_collection,
         fitness_workouts_collection,
+        twin_actions_collection,
+        twin_reports_collection,
     ):
         collection.delete_many({"user_id": current_user})
     users_collection.delete_one({"username": current_user})

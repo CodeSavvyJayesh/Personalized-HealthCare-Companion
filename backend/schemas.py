@@ -8,7 +8,7 @@ pymongo and requests calls no longer stall the event loop).
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -98,7 +98,12 @@ class TaskUpdateIn(BaseModel):
 class SleepIn(BaseModel):
     bed_time: str = Field(pattern=r"^\d{1,2}:\d{2}$")
     wake_time: str = Field(pattern=r"^\d{1,2}:\d{2}$")
-    quality: int | None = Field(default=None, ge=1, le=5)
+    # The Sleep Health screen sends a label ("Good"); older clients sent 1-5.
+    quality: (
+        Annotated[int, Field(ge=1, le=5)]
+        | Literal["Excellent", "Good", "Fair", "Poor"]
+        | None
+    ) = None
 
 
 class PostIn(BaseModel):
@@ -164,3 +169,9 @@ class WorkoutLogIn(BaseModel):
 class CoachIn(BaseModel):
     question: str = Field(min_length=2, max_length=1000)
     language: str = "en-US"
+
+
+# ------------------------------------------------------------- health twin
+class TwinReportIn(BaseModel):
+    language: str = "en-US"
+    refresh: bool = False

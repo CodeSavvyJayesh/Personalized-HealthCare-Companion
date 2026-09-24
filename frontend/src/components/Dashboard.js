@@ -12,7 +12,8 @@ import {
   FiTarget,
   FiBookOpen, // Added for Resources
 } from "react-icons/fi";
-import { LuDumbbell } from "react-icons/lu";
+import { LuBrainCircuit, LuDumbbell } from "react-icons/lu";
+import HealthTwinCard from "./HealthTwinCard";
 import API_URL from "../config";
 import { apiFetch } from "../api";
 import "./Dashboard.css";
@@ -55,6 +56,13 @@ function Dashboard({ onNavigate, userId, sessionId }) {
       icon: <FiMessageSquare size={28} />,
       color: "#0077b6",
       isPrimary: true,
+    },
+    {
+      id: "twin",
+      title: "My Health Twin",
+      desc: "Your wellness score, what affects you, and today's plan.",
+      icon: <LuBrainCircuit size={28} />,
+      color: "#6f5bf6",
     },
     {
       id: "meditation",
@@ -139,6 +147,7 @@ function Dashboard({ onNavigate, userId, sessionId }) {
   const handleModuleClick = (id) => {
     // List of modules that are fully implemented in App.js
     const implementedModules = [
+      "twin",
       "chat",
       "meditation",
       "dailyRoutine",
@@ -168,6 +177,8 @@ function Dashboard({ onNavigate, userId, sessionId }) {
           How are you feeling today? Explore your wellness modules.
         </p>
       </div>
+
+      <HealthTwinCard userId={userId} onNavigate={onNavigate} />
 
       {insights && (
         <div className="insights-summary">

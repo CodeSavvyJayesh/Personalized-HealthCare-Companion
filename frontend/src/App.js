@@ -15,6 +15,7 @@ import GoalSetting from "./components/GoalSetting";
 import Insights from "./components/Insights";
 import SafetyLab from "./components/SafetyLab";
 import Fitness from "./components/Fitness";
+import HealthTwin from "./components/HealthTwin";
 import React, { useState, useContext, useEffect } from "react";
 import { ThemeContext } from "./ThemeContext";
 import { logout as logoutRequest, tokens } from "./api";
@@ -34,7 +35,7 @@ import {
   FiTrendingUp,
   FiShield,
 } from "react-icons/fi";
-import { LuDumbbell } from "react-icons/lu";
+import { LuBrainCircuit, LuDumbbell } from "react-icons/lu";
 
 import "./App.css";
 
@@ -143,6 +144,14 @@ function App() {
           >
             <FiHome size={20} />
             {isSidebarOpen && <span>Dashboard</span>}
+          </button>
+
+          <button
+            className={`nav-item ${activeModule === "twin" ? "active" : ""}`}
+            onClick={() => navigateTo("twin")}
+          >
+            <LuBrainCircuit size={20} />
+            {isSidebarOpen && <span>My Health Twin</span>}
           </button>
 
           <button
@@ -270,6 +279,7 @@ function App() {
 
             <h2 className="page-title">
               {activeModule === "dashboard" && "Dashboard"}
+              {activeModule === "twin" && "My Health Twin"}
               {activeModule === "chat" && "MindWell Therapist"}
               {activeModule === "dailyRoutine" && "Daily Routine"}
               {activeModule === "meditation" && "Meditation & Focus"}
@@ -305,6 +315,9 @@ function App() {
               userId={userId}
               sessionId={sessionId}
             />
+          )}
+          {activeModule === "twin" && (
+            <HealthTwin userId={userId} onNavigate={navigateTo} />
           )}
           {activeModule === "chat" && (
             <Chat userId={userId} sessionId={sessionId} />

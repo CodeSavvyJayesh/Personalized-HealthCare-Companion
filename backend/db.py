@@ -64,6 +64,10 @@ fitness_metrics_collection = db["fitness_metrics"]     # weight/BMI history
 fitness_plans_collection = db["fitness_plans"]         # generated plans
 fitness_workouts_collection = db["fitness_workouts"]   # completed sessions
 
+# Personal Health Twin.
+twin_actions_collection = db["twin_actions"]   # ticked daily-plan actions
+twin_reports_collection = db["twin_reports"]   # cached weekly reports
+
 # OTPs used to live in a process-local dict, so every restart logged people
 # out of the signup flow and a second worker never saw the first one's codes.
 otp_collection = db["otps"]
@@ -110,6 +114,13 @@ def ensure_indexes() -> None:
 
         fitness_profiles_collection.create_index(
             [("user_id", ASCENDING)], unique=True
+        )
+        twin_actions_collection.create_index(
+            [("user_id", ASCENDING), ("date", ASCENDING), ("action_id", ASCENDING)],
+            unique=True,
+        )
+        twin_reports_collection.create_index(
+            [("user_id", ASCENDING), ("created_at", DESCENDING)]
         )
 
         meditation_collection.create_index(
