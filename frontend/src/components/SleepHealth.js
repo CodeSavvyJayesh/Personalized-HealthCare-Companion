@@ -119,7 +119,7 @@ function SleepHealth({ userId }) {
       );
 
       showToast(
-        "An error occurred",
+        err.message || "Couldn't save your sleep record",
         "error"
       );
     }

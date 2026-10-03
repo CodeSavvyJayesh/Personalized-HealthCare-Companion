@@ -31,9 +31,11 @@ function Signup({ onSignupSuccess, onSwitch }) {
 
     if (!password) {
       newErrors.password = "Password is required";
-    } else if (password.length < 6) {
+    } else if (password.length < 8) {
+      // Must match the server (schemas.py). At 6 the form accepted
+      // passwords the API then rejected, after the code had been emailed.
       newErrors.password =
-        "Password must be at least 6 characters";
+        "Password must be at least 8 characters";
     }
 
     if (!confirmPassword) {
@@ -90,7 +92,7 @@ function Signup({ onSignupSuccess, onSwitch }) {
       );
 
       setErrors({
-        form: "Server error",
+        form: err.message || "Couldn't send the code. Please try again.",
       });
     } finally {
       setLoading(false);
@@ -144,7 +146,7 @@ function Signup({ onSignupSuccess, onSwitch }) {
       );
 
       setErrors({
-        form: "Verification failed",
+        form: err.message || "Verification failed",
       });
     } finally {
       setLoading(false);

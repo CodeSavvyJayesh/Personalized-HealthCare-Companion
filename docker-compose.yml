@@ -1,0 +1,19 @@
+# Local run of the production image: one container, API + web app.
+#
+#   docker compose up --build        then open http://localhost:8000
+#
+# Needs backend/.env. LLM_BASE_URL must be reachable from inside the
+# container: use a hosted endpoint, or http://host.docker.internal:11434/v1
+# for an Ollama running on this machine.
+services:
+  mindwell:
+    build: .
+    env_file: ./backend/.env
+    environment:
+      ENV: ${ENV:-development}
+      SENTIMENT_BACKEND: onnx
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

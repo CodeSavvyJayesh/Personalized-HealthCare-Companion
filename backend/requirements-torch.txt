@@ -1,0 +1,7 @@
+# Optional: the torch backend for sentiment (SENTIMENT_BACKEND=torch).
+# Only useful on a development machine that keeps the original safetensors
+# weights in backend/models/. Production does not install this.
+-r requirements.txt
+transformers>=4.47
+torch>=2.6
+safetensors>=0.4

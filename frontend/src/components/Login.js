@@ -52,9 +52,9 @@ function Login({ onLoginSuccess, onSwitch }) {
 
     if (!newPassword) {
       newErrors.newPassword = "New password is required";
-    } else if (newPassword.length < 6) {
+    } else if (newPassword.length < 8) {
       newErrors.newPassword =
-        "Password must be at least 6 characters";
+        "Password must be at least 8 characters";
     }
 
     setErrors(newErrors);
@@ -111,7 +111,7 @@ function Login({ onLoginSuccess, onSwitch }) {
       }
     } catch (err) {
       setErrors({
-        form: "Server error, please try again.",
+        form: err.message || "Server error, please try again.",
       });
     } finally {
       setLoading(false);
@@ -160,7 +160,7 @@ function Login({ onLoginSuccess, onSwitch }) {
       }
     } catch (err) {
       setErrors({
-        form: "Server error, please try again.",
+        form: err.message || "Server error, please try again.",
       });
     } finally {
       setLoading(false);

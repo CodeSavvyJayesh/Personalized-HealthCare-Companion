@@ -147,15 +147,29 @@ _IMMINENT = [
     r"\btell\s+my\s+(mother|mom|father|dad|family|parents)\s+i'?m\s+sorry\b",
     # --- romanised Hindi / Marathi + Devanagari ---------------------------
     r"\bapni\s+jaan\s+de\s+(dunga|dungi|dena)\b",
-    r"\bkhatam\s+(karna\s+hai|kar\s+dunga|kar\s+dungi)\b",
+    # "khatam karna" just means "to finish". Without an object that makes it
+    # about the speaker it fires on "kaam khatam karna hai" (I have work to
+    # finish), so the object is part of the pattern.
+    r"\b(apne\s+aap\s+ko|khud\s+ko|sab(\s+kuch)?|zindagi|jindagi)\s+"
+    r"khatam\s+(karna\s+hai|kar\s+dunga|kar\s+dungi)\b",
     r"\bsuicide\s+karne\s+wal[ai]\b",
     r"\bab\s+nahi\s+rahunga\b",
     r"\bswatahla\s+sampvaycha\b",
     r"\bjeev\s+dyaycha\b",
     r"\bmain\s+marr?\s+jaunga\b",
-    r"आत्महत्या",
-    r"जान\s*दे",
-    r"खत्म\s*कर",
+    # Devanagari. No \b here: vowel signs are combining marks, not word
+    # characters, so a word boundary can fall in the middle of a word.
+    r"आत्महत्या\s*(कर|करू|करने|करणार)",
+    r"जान\s*दे\s*(दूँ|दूं|दे|ने)",
+    r"(खुद\s*को|ख़ुद\s*को|अपने\s*आप\s*को|अपनी\s*(ज़िंदगी|जिंदगी|जान)|सब\s*कुछ)\s*"
+    r"(खत्म|ख़त्म)\s*कर\s*(दूँ|दूं|लूँ|लूं|ना\s*है|ना\s*चाहत)",
+    r"मर\s*जाऊ[ँं]गा|मर\s*जाऊ[ँं]गी",
+    r"फाँसी\s*लगा|फांसी\s*लगा",
+    r"ज़हर\s*खा|जहर\s*खा",
+    r"स्वतःला\s*संपव",
+    r"जीव\s*दे(तो|ते|णार|ईन)",
+    r"आज\s*रात.{0,24}(आख़िरी|आखिरी|अलविदा)",
+    r"आज\s*रात्री.{0,24}(शेवट|निरोप)",
 ]
 
 _IDEATION = [
@@ -210,6 +224,18 @@ _IDEATION = [
     r"\bmere\s+bina\s+behtar\b",
     r"\bjagaycha\s+nahi\b",
     r"\bkhatam\s+ho\s+jaun\b",
+    # Devanagari
+    r"आत्महत्या",
+    r"मरना\s*चाहत[ाी]",
+    r"मर\s*जाना\s*चाहत[ाी]",
+    r"जीना\s*नहीं\s*चाहत[ाी]",
+    r"जीने\s*का\s*मन\s*नहीं",
+    r"मेरे\s*बिना\s*(सब|सबको)?.{0,12}(बेहतर|अच्छा)",
+    r"खुद\s*को\s*(नुकसान|चोट)",
+    r"जगायचं\s*नाही|जगायचे\s*नाही|जगावंसं\s*वाटत\s*नाही",
+    r"मरावंसं\s*वाटत",
+    r"माझ्याशिवाय.{0,16}(बरं|चांगलं)",
+    r"स्वतःला\s*(इजा|त्रास)",
 ]
 
 _DISTRESS = [
@@ -484,26 +510,76 @@ def format_resources(region: str = "IN") -> str:
     return "\n".join(f"- **{item['name']}** — {item['contact']}" for item in lines)
 
 
-def crisis_response(region: str = "IN") -> str:
-    """The fixed Tier 3 reply. Reviewed text, no model in the loop.
-
-    It does three things and nothing else: names what it heard, states
-    plainly that it is not equipped to be the only support in the room,
-    and hands over concrete human contacts.
-    """
-    return (
+# The Tier-3 reply, written in advance in each supported language.
+#
+# These are deliberately NOT produced by translating the English text at
+# request time: the one message that must always arrive cannot depend on a
+# translation service being up, and it should be wording a person chose.
+# {resources} is the helpline list. The Hindi and Marathi avoid gendered
+# verb forms for the speaker.
+_CRISIS_TEXT = {
+    "en": (
         "I'm really glad you told me this, and I want to be honest with you: "
         "what you're describing sounds serious, and I'm not able to be the "
         "only support you have right now.\n\n"
         "**Please reach out to someone who can help immediately:**\n\n"
-        f"{format_resources(region)}\n\n"
+        "{resources}\n\n"
         "If you are in immediate danger, please call emergency services or go "
         "to the nearest emergency room.\n\n"
         "If you can, tell one person near you — a family member, a friend, a "
         "neighbour — what you just told me. You do not have to explain it "
         "well. You only have to not be alone with it.\n\n"
         "I'm still here. I'm not going anywhere."
-    )
+    ),
+    "hi": (
+        "आपने मुझे यह बताया, यह बहुत अच्छा किया, और मुझे आपसे ईमानदार रहना है: "
+        "आप जो बता रहे हैं वह गंभीर है, और इस समय अकेले मेरा सहारा आपके लिए "
+        "काफ़ी नहीं है।\n\n"
+        "**कृपया तुरंत किसी ऐसे व्यक्ति से संपर्क करें जो मदद कर सके:**\n\n"
+        "{resources}\n\n"
+        "अगर आप तुरंत ख़तरे में हैं, तो कृपया आपातकालीन सेवा (112) को फ़ोन करें "
+        "या नज़दीकी अस्पताल के आपातकालीन विभाग में जाएँ।\n\n"
+        "अगर हो सके, तो अपने पास के किसी एक व्यक्ति को — परिवार का कोई सदस्य, "
+        "दोस्त, पड़ोसी — वही बताइए जो आपने अभी मुझे बताया। ठीक से समझाने की "
+        "ज़रूरत नहीं है। बस इसमें अकेले मत रहिए।\n\n"
+        "मैं यहीं हूँ। आपके साथ हूँ।"
+    ),
+    "mr": (
+        "तुम्ही हे मला सांगितलंत हे खूप चांगलं केलंत, आणि मला तुमच्याशी "
+        "प्रामाणिक राहायचं आहे: तुम्ही जे सांगत आहात ते गंभीर आहे, आणि या "
+        "क्षणी फक्त माझा आधार तुमच्यासाठी पुरेसा नाही.\n\n"
+        "**कृपया लगेच मदत करू शकणाऱ्या व्यक्तीशी संपर्क साधा:**\n\n"
+        "{resources}\n\n"
+        "तुम्हाला तात्काळ धोका असेल, तर कृपया आपत्कालीन सेवेला (112) फोन करा "
+        "किंवा जवळच्या रुग्णालयाच्या आपत्कालीन विभागात जा.\n\n"
+        "शक्य असेल तर तुमच्या जवळच्या एका व्यक्तीला — कुटुंबातील कोणी, मित्र, "
+        "शेजारी — तुम्ही आत्ता मला जे सांगितलंत ते सांगा. नीट समजावून "
+        "सांगण्याची गरज नाही. फक्त यात एकटे राहू नका.\n\n"
+        "मी इथेच आहे. तुमच्यासोबत आहे."
+    ),
+}
+
+_RESOURCES_HEADER = {
+    "en": (
+        "**You don't have to hold this alone. These lines are free and open "
+        "right now:**"
+    ),
+    "hi": "**आपको यह अकेले नहीं सहना है। ये हेल्पलाइन मुफ़्त हैं और अभी चालू हैं:**",
+    "mr": "**हे तुम्हाला एकट्याने सहन करायचं नाही. या हेल्पलाइन मोफत आहेत आणि आत्ता सुरू आहेत:**",
+}
+
+SUPPORTED_LANGUAGES = tuple(_CRISIS_TEXT)
+
+
+def crisis_response(region: str = "IN", lang: str = "en") -> str:
+    """The fixed Tier 3 reply. Reviewed text, no model in the loop.
+
+    It does three things and nothing else: names what it heard, states
+    plainly that it is not equipped to be the only support in the room,
+    and hands over concrete human contacts.
+    """
+    template = _CRISIS_TEXT.get(lang, _CRISIS_TEXT["en"])
+    return template.format(resources=format_resources(region))
 
 
 SAFE_MODE_PROMPT = """
@@ -520,13 +596,9 @@ wanting to be alive. For this reply:
 """
 
 
-def append_resources(reply: str, region: str = "IN") -> str:
-    return (
-        f"{reply}\n\n---\n\n"
-        "**You don't have to hold this alone. These lines are free and open "
-        "right now:**\n\n"
-        f"{format_resources(region)}"
-    )
+def append_resources(reply: str, region: str = "IN", lang: str = "en") -> str:
+    header = _RESOURCES_HEADER.get(lang, _RESOURCES_HEADER["en"])
+    return f"{reply}\n\n---\n\n{header}\n\n{format_resources(region)}"
 
 
 # ------------------------------------------------------------- audit trail

@@ -169,7 +169,7 @@ function Journaling({ userId }) {
 
       setToast({
         type: "error",
-        message: "Server error while saving",
+        message: err.message || "Couldn't save your entry. Please try again.",
       });
     } finally {
       setLoading(false);

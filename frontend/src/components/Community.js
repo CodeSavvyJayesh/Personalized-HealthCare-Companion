@@ -15,6 +15,9 @@ function Community({ userId }) {
   const [loading, setLoading] = useState(true);
   const [newPostContent, setNewPostContent] = useState("");
   const [toast, setToast] = useState(null);
+  // Shown in place of a post the safety layer declined to publish. It stays
+  // until dismissed: a list of helplines must not vanish like a toast.
+  const [safetyNotice, setSafetyNotice] = useState(null);
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -62,7 +65,13 @@ function Community({ userId }) {
 
       const data = res;
 
+      if (data.safety_notice) {
+        setSafetyNotice(data.safety_notice);
+        return;
+      }
+
       if (data.success) {
+        setSafetyNotice(null);
         showToast("Post created successfully!");
         setNewPostContent("");
 
@@ -78,7 +87,7 @@ function Community({ userId }) {
       }
     } catch (err) {
       console.error("Error creating post", err);
-      showToast("An error occurred", "error");
+      showToast(err.message || "Couldn't publish your post", "error");
     }
   };
 
@@ -160,6 +169,37 @@ function Community({ userId }) {
       </div>
 
       <div className="community-content">
+        {safetyNotice && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: "1.25rem",
+              padding: "1.25rem 1.4rem",
+              borderRadius: "16px",
+              border: "1.5px solid rgba(251, 191, 36, 0.55)",
+              background:
+                "linear-gradient(135deg, rgba(251,191,36,0.14), rgba(251,113,133,0.10))",
+              color: "var(--text-primary)",
+              lineHeight: 1.65,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            <strong style={{ display: "block", marginBottom: "0.5rem" }}>
+              Your post wasn't published — but please read this.
+            </strong>
+            {safetyNotice.replace(/\*\*/g, "")}
+            <div style={{ marginTop: "0.9rem" }}>
+              <button
+                type="button"
+                className="action-btn"
+                onClick={() => setSafetyNotice(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="create-post-card">
           <textarea
             placeholder="Share what's on your mind..."

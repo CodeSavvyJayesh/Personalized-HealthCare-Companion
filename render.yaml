@@ -1,0 +1,51 @@
+# Render blueprint — New + > Blueprint, point it at this repository.
+# Values marked `sync: false` are secrets you type into the dashboard; they
+# are never stored in git.
+services:
+  - type: web
+    name: mindwell
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB
+        value: health_app
+      - key: JWT_SECRET
+        generateValue: true
+
+      # Any OpenAI-compatible endpoint. Groq's free tier is the default.
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
+      - key: LLM_FALLBACK_MODEL
+        value: llama-3.1-8b-instant
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_TIMEOUT
+        value: "30"
+
+      # Email over HTTPS. Render's free tier blocks SMTP ports, so a Gmail
+      # app password cannot work here.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_FROM_NAME
+        value: MindWell
+
+      - key: SENTIMENT_BACKEND
+        value: onnx
+      - key: TRANSLATION_PROVIDER
+        value: auto
+      - key: CRISIS_REGION
+        value: IN
+      - key: TZ_OFFSET_MINUTES
+        value: "330"

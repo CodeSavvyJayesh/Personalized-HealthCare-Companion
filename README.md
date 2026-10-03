@@ -26,6 +26,7 @@ coach. Available in English, Hindi and Marathi.
 - [Architecture](#architecture)
 - [Project structure](#project-structure)
 - [Getting started](#getting-started)
+- [Deployment](#deployment)
 - [Configuration](#configuration)
 - [API overview](#api-overview)
 - [Testing](#testing)
@@ -290,10 +291,12 @@ the user's own messages, not the bot's replies.
 
 - **Frontend:** React 19, Recharts, React Markdown, React Icons, date-fns
 - **Backend:** FastAPI, Pydantic v2, PyMongo, python-jose, passlib/bcrypt
-- **ML:** Hugging Face Transformers (DistilBERT), PyTorch
+- **ML:** DistilBERT (SST-2) on ONNX Runtime with a dependency-free WordPiece
+  tokenizer; PyTorch optional for local development
 - **LLM:** Ollama, Groq, OpenAI or any OpenAI-compatible API
 - **Database:** MongoDB Atlas
-- **Deployment:** Docker, Docker Compose, nginx
+- **Deployment:** one Docker image serving the API and the React build;
+  Render blueprint included
 
 ---
 
@@ -312,18 +315,24 @@ ai-mental-health-chatbot/
 │   ├── twin_engine.py       # wellness score, insights, early warning, daily plan
 │   ├── analytic.py          # insights and analytics
 │   ├── memory.py            # conversation window + rolling summary
-│   ├── sentiment.py         # DistilBERT sentiment
+│   ├── sentiment.py         # DistilBERT sentiment (ONNX Runtime or torch)
+│   ├── wordpiece.py         # dependency-free BERT tokenizer
+│   ├── i18n.py              # translation chain: Google -> LLM -> passthrough
 │   ├── llm.py               # provider-agnostic LLM client + circuit breaker
+│   ├── server.py            # production entrypoint: API + React build
+│   ├── scripts/             # fetch/verify the model, end-to-end smoke test
 │   ├── auth.py  db.py  config.py  schemas.py  ratelimit.py  utils.py
 │   ├── evals/               # crisis benchmark, scorer, thresholds
-│   ├── models/              # sentiment model weights
+│   ├── models/              # tokenizer vocab + config (weights are fetched)
 │   └── tests/
 ├── frontend/
 │   ├── src/
 │   │   ├── App.js  api.js  config.js  ThemeContext.js
 │   │   └── components/      # HealthTwin, Chat, Fitness, SafetyLab, MoodTracker, …
 │   ├── public/sounds/       # Calm Sounds audio
-│   ├── Dockerfile  nginx.conf
+├── Dockerfile               # the deployable image (web app + API)
+├── render.yaml              # Render blueprint
+├── DEPLOY.md                # step-by-step deployment
 └── docker-compose.yml
 ```
 
@@ -372,7 +381,44 @@ The app opens at `http://localhost:3000`.
 docker compose up --build
 ```
 
-Frontend on port 3000, API on port 8000. The API reads `backend/.env`.
+One container, the web app and the API together, on
+`http://localhost:8000`. It reads `backend/.env`.
+
+---
+
+## Deployment
+
+The app deploys as a single container: the FastAPI process serves the React
+build at `/` and the API under `/api`, so there is one URL and no CORS.
+Step-by-step instructions are in [DEPLOY.md](DEPLOY.md).
+
+What had to change to make it deployable, and why:
+
+- **No PyTorch in production.** Sentiment runs the same DistilBERT model on
+  ONNX Runtime with a pure-Python WordPiece tokenizer (`wordpiece.py`). The
+  image drops by roughly 2 GB and the service fits a 512 MB instance. The
+  Docker build downloads the 68 MB model and refuses to finish unless it
+  classifies a set of known sentences correctly — a deploy can degrade at
+  runtime, but it cannot ship already broken.
+- **A hosted LLM, with rate limits treated as rate limits.** A `429` gets a
+  short retry and then a fallback model, and never trips the circuit
+  breaker; only real failures do.
+- **Translation that survives the cloud.** Google's public endpoint is
+  unreliable from datacentre IPs, so translation is a chain — Google, then
+  the LLM, then the original text — and never fails a request.
+- **The crisis response does not depend on any of that.** It is pre-written
+  in English, Hindi and Marathi, and the classifier reads Devanagari
+  directly, so the Tier-3 path works with every external service down.
+- **Email over HTTPS.** Free hosts commonly block SMTP ports, so signup
+  codes go through an HTTP email API, with SMTP kept for local use. In
+  production a failed send is reported to the user instead of being logged
+  and ignored.
+- **Fail fast on configuration.** In production the app refuses to start
+  with a short JWT secret or an LLM URL that points at localhost.
+
+After a deploy, `scripts/smoke_test.py` exercises every feature against the
+live URL — including the things that must fail, such as reading another
+user's data.
 
 ---
 
@@ -388,9 +434,12 @@ default. See [`backend/.env.example`](backend/.env.example).
 | `JWT_SECRET` | Token signing key (required) |
 | `CORS_ORIGINS` | Allowed frontend origins |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_TIMEOUT` | LLM endpoint |
-| `SENTIMENT_MODEL_PATH`, `SENTIMENT_NEUTRAL_THRESHOLD` | Sentiment model |
+| `LLM_FALLBACK_MODEL` | Model to use when the main one is rate limited |
+| `SENTIMENT_BACKEND`, `SENTIMENT_MODEL_PATH`, `SENTIMENT_NEUTRAL_THRESHOLD` | Sentiment model (`auto`, `onnx`, `torch`, `off`) |
+| `TRANSLATION_PROVIDER` | `auto`, `google`, `llm` or `off` |
 | `CHAT_WINDOW_TURNS`, `SUMMARISE_AFTER_TURNS` | Conversation memory |
-| `EMAIL_FROM`, `EMAIL_PASSWORD`, `SMTP_HOST`, `SMTP_PORT` | OTP emails |
+| `EMAIL_FROM`, `BREVO_API_KEY` / `RESEND_API_KEY` / `EMAIL_PASSWORD` | OTP emails: an HTTPS provider, or SMTP locally |
+| `ALLOW_DIRECT_SIGNUP` | Unverified `POST /signup`; off in production |
 | `RATE_LIMIT_*` | Request limits |
 | `CRISIS_REGION` | Helpline region (default `IN`) |
 | `TZ_OFFSET_MINUTES` | What "today" means for daily scores (default `330`, IST) |

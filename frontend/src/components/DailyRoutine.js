@@ -135,7 +135,7 @@ export default function DailyRoutine({ userId }) {
 
       setToast({
         type: "error",
-        message: "Server error while adding task",
+        message: err.message || "Couldn't add the task. Please try again.",
       });
     }
 
@@ -202,7 +202,7 @@ export default function DailyRoutine({ userId }) {
 
       setToast({
         type: "error",
-        message: "Server error while updating task",
+        message: err.message || "Couldn't update the task. Please try again.",
       });
     }
   };

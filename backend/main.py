@@ -6,16 +6,18 @@ a user_id supplied by the client.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from deep_translator import GoogleTranslator
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
+import i18n
 import llm
 import memory
 import safety
@@ -52,7 +54,9 @@ from db import (
     meditation_collection,
     messages_collection,
     moods_collection,
+    otp_collection,
     ping,
+    refresh_tokens_collection,
     safety_events_collection,
     sessions_collection,
     sleep_collection,
@@ -80,7 +84,14 @@ from schemas import (
     TokenOut,
     VerifyOtpIn,
 )
-from utils import generate_otp, send_otp_email, store_otp, verify_otp
+from utils import (
+    EmailDeliveryError,
+    email_provider,
+    generate_otp,
+    send_otp_email,
+    store_otp,
+    verify_otp,
+)
 
 # Root stays at INFO no matter what. DEBUG is opt-in per application logger.
 # Setting the ROOT logger to DEBUG turns on every third-party library at once
@@ -93,7 +104,8 @@ logging.basicConfig(
 
 _app_level = logging.DEBUG if settings.DEBUG else logging.INFO
 for _name in ("mindwell", "main", "auth", "db", "llm", "memory", "safety",
-              "sentiment", "analytic", "fitness", "twin", "utils", "uvicorn.error"):
+              "sentiment", "analytic", "fitness", "twin", "utils", "i18n",
+              "server", "uvicorn.error"):
     logging.getLogger(_name).setLevel(_app_level)
 
 log = logging.getLogger("mindwell")
@@ -158,7 +170,32 @@ BEHAVIOUR:
 - Keep replies to 2-8 sentences
 """
 
-LANG_CODE_MAP = {"en-US": "en", "hi-IN": "hi", "mr-IN": "mr"}
+
+def _local_today() -> str:
+    """Today's date where the users are, not where the server is. A session
+    logged at 1 a.m. IST is still 'yesterday' in UTC, which silently broke
+    streaks for anyone who meditates late."""
+    return (utcnow() + timedelta(minutes=settings.TZ_OFFSET_MINUTES)).strftime(
+        "%Y-%m-%d"
+    )
+
+
+def _normalise_email(value: str) -> str:
+    return value.strip().lower()
+
+
+def _pseudonym(user_id: str) -> str:
+    """Stable anonymous handle for the community wall.
+
+    The builtin hash() is salted per process, so the old implementation
+    renamed every member each time the server restarted. This is keyed with
+    the server secret so the handle is stable but cannot be reversed or
+    recomputed by someone who knows a username.
+    """
+    digest = hmac.new(
+        settings.JWT_SECRET.encode(), user_id.encode(), hashlib.sha256
+    ).hexdigest()
+    return f"Member {int(digest[:8], 16) % 9000 + 1000}"
 
 
 # ------------------------------------------------------------------ utils
@@ -184,24 +221,27 @@ def _own_session(session_id: str, user_id: str) -> dict:
     return session
 
 
-def _translate(text: str, source: str, target: str) -> str:
-    if source == target:
-        return text
-    try:
-        return GoogleTranslator(source=source, target=target).translate(text)
-    except Exception as exc:
-        log.warning("Translation %s->%s failed: %s", source, target, exc)
-        return text
-
-
 # ----------------------------------------------------------------- health
 @app.get("/health")
 def health() -> dict:
     db_ok = ping()
+    sentiment_state = sentiment.status()
+    mail = email_provider()
+    degraded = (
+        not db_ok
+        or not sentiment_state["ready"]
+        or llm.breaker.is_open
+        or (settings.IS_PRODUCTION and mail == "none")
+    )
+    # Always HTTP 200: this is a status report, not a liveness gate. A host
+    # that restarts the container because Mongo blinked makes things worse.
     return {
-        "status": "ok" if db_ok else "degraded",
+        "status": "degraded" if degraded else "ok",
         "database": "up" if db_ok else "down",
         "llm": llm.health(),
+        "sentiment": sentiment_state,
+        "email": mail,
+        "translation": settings.TRANSLATION_PROVIDER,
         "env": settings.ENV,
     }
 
@@ -209,13 +249,17 @@ def health() -> dict:
 # ------------------------------------------------------------------- auth
 @app.post("/signup", response_model=OkOut, dependencies=[Depends(auth_limit)])
 def signup(payload: SignupIn) -> OkOut:
-    if users_collection.find_one({"username": payload.username}):
+    if not settings.ALLOW_DIRECT_SIGNUP:
+        # In production the only way in is the emailed code.
+        raise HTTPException(status_code=404, detail="Not found")
+    username = _normalise_email(payload.username)
+    if users_collection.find_one({"username": username}):
         # Same shape as success on purpose — don't let signup be used to
         # enumerate which email addresses have accounts.
         raise HTTPException(status_code=409, detail="Could not create account")
     users_collection.insert_one(
         {
-            "username": payload.username,
+            "username": username,
             "password": hash_password(payload.password),
             "created_at": utcnow(),
         }
@@ -225,20 +269,27 @@ def signup(payload: SignupIn) -> OkOut:
 
 @app.post("/login", response_model=TokenOut, dependencies=[Depends(auth_limit)])
 def login(payload: LoginIn) -> TokenOut:
-    user = users_collection.find_one({"username": payload.username})
+    # Exact match first so accounts created before emails were normalised
+    # keep working; then the normalised form, so "Me@Mail.com" signs in to
+    # the account registered as "me@mail.com".
+    typed = payload.username.strip()
+    user = users_collection.find_one({"username": typed}) or users_collection.find_one(
+        {"username": _normalise_email(typed)}
+    )
     if not user or not verify_password(payload.password, user.get("password", "")):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password",
+            detail="Invalid email or password",
         )
 
+    username = user["username"]
     result = sessions_collection.insert_one(
-        {"user_id": payload.username, "created_at": utcnow()}
+        {"user_id": username, "created_at": utcnow()}
     )
     return TokenOut(
-        access_token=create_access_token(payload.username),
-        refresh_token=create_refresh_token(payload.username),
-        user_id=payload.username,
+        access_token=create_access_token(username),
+        refresh_token=create_refresh_token(username),
+        user_id=username,
         session_id=str(result.inserted_id),
     )
 
@@ -270,25 +321,46 @@ def me(current_user: str = Depends(get_current_user)) -> dict:
 
 
 # -------------------------------------------------------------------- otp
+def _deliver_otp(email: str, otp: str) -> None:
+    try:
+        send_otp_email(email, otp)
+    except EmailDeliveryError as exc:
+        log.error("OTP email to %s failed: %s", email, exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="We couldn't send the verification email right now. "
+            "Please try again in a minute.",
+        )
+
+
 @app.post("/send-otp", response_model=OkOut, dependencies=[Depends(auth_limit)])
 def send_otp(payload: EmailIn) -> OkOut:
+    email = _normalise_email(payload.email)
+    if users_collection.find_one(
+        {"username": {"$in": [email, payload.email.strip()]}}
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="An account with this email already exists. Try signing in.",
+        )
     otp = generate_otp()
-    store_otp(payload.email, otp)
-    send_otp_email(payload.email, otp)
+    store_otp(email, otp)
+    _deliver_otp(email, otp)
     return OkOut()
 
 
 @app.post("/verify-otp", response_model=OkOut, dependencies=[Depends(auth_limit)])
 def verify_signup_otp(payload: VerifyOtpIn) -> OkOut:
-    if not verify_otp(payload.email, payload.otp):
+    email = _normalise_email(payload.email)
+    if not verify_otp(email, payload.otp):
         raise HTTPException(status_code=400, detail="Invalid or expired code")
     # Previously this inserted unconditionally, so verifying twice created a
     # duplicate account for the same email.
     users_collection.update_one(
-        {"username": payload.email},
+        {"username": email},
         {
             "$set": {"password": hash_password(payload.password)},
-            "$setOnInsert": {"username": payload.email, "created_at": utcnow()},
+            "$setOnInsert": {"username": email, "created_at": utcnow()},
         },
         upsert=True,
     )
@@ -297,10 +369,14 @@ def verify_signup_otp(payload: VerifyOtpIn) -> OkOut:
 
 @app.post("/send-reset-otp", response_model=OkOut, dependencies=[Depends(auth_limit)])
 def send_reset_otp(payload: EmailIn) -> OkOut:
-    if users_collection.find_one({"username": payload.email}):
+    email = _normalise_email(payload.email)
+    user = users_collection.find_one({"username": payload.email.strip()}) or (
+        users_collection.find_one({"username": email})
+    )
+    if user:
         otp = generate_otp()
-        store_otp(payload.email, otp)
-        send_otp_email(payload.email, otp)
+        store_otp(email, otp)
+        _deliver_otp(email, otp)
     # Always report success: a different answer for unknown emails is an
     # account enumeration oracle.
     return OkOut()
@@ -308,11 +384,20 @@ def send_reset_otp(payload: EmailIn) -> OkOut:
 
 @app.post("/reset-password", response_model=OkOut, dependencies=[Depends(auth_limit)])
 def reset_password(payload: ResetPasswordIn) -> OkOut:
-    if not verify_otp(payload.email, payload.otp):
+    email = _normalise_email(payload.email)
+    if not verify_otp(email, payload.otp):
         raise HTTPException(status_code=400, detail="Invalid or expired code")
-    users_collection.update_one(
-        {"username": payload.email},
-        {"$set": {"password": hash_password(payload.new_password)}},
+    new_hash = hash_password(payload.new_password)
+    result = users_collection.update_one(
+        {"username": payload.email.strip()}, {"$set": {"password": new_hash}}
+    )
+    if result.matched_count == 0:
+        users_collection.update_one(
+            {"username": email}, {"$set": {"password": new_hash}}
+        )
+    # A password reset should end every existing session for the account.
+    refresh_tokens_collection.delete_many(
+        {"user_id": {"$in": [payload.email.strip(), email]}}
     )
     return OkOut()
 
@@ -333,14 +418,32 @@ def chat_endpoint(
 ) -> ChatOut:
     _own_session(payload.session_id, current_user)
 
-    source_lang = LANG_CODE_MAP.get(payload.language, "en")
+    source_lang = i18n.language_of(payload.language)
     user_text = payload.text.strip()
-    user_text_en = _translate(user_text, source_lang, "en")
 
-    # ---- 1. SAFETY FIRST, before sentiment, before the model ----------
-    assessment = safety.assess_risk(f"{user_text}\n{user_text_en}")
+    # ---- 1. SAFETY FIRST — before translation, sentiment, or the model --
+    # The classifier reads the message exactly as it was typed. Translation
+    # comes after, because translation can itself fall back to the LLM, and
+    # the whole point of Tier 3 is that an imminent-risk message is never
+    # handed to a model or held up waiting on an external service.
+    assessment = safety.assess_risk(user_text)
 
-    label, confidence = sentiment.classify(user_text_en)
+    if assessment.blocks_llm:
+        user_text_en = user_text
+    else:
+        user_text_en = i18n.translate(user_text, source_lang, "en")
+        if user_text_en != user_text:
+            # Second pass with the English alongside, for phrasings the
+            # lexicon only knows in English.
+            assessment = safety.assess_risk(f"{user_text}\n{user_text_en}")
+
+    if any(ch.isalpha() and ord(ch) > 0x024F for ch in user_text_en):
+        # Still in another script (translation was skipped or failed). The
+        # sentiment model only reads English and would be guessing, so
+        # record that we do not know rather than a made-up polarity.
+        label, confidence = "NEUTRAL", 0.0
+    else:
+        label, confidence = sentiment.classify(user_text_en)
 
     messages_collection.insert_one(
         {
@@ -359,7 +462,8 @@ def chat_endpoint(
 
     if assessment.blocks_llm:
         # Deterministic path. The model is not consulted at all.
-        reply = safety.crisis_response(settings.CRISIS_REGION)
+        # Pre-written in the user's language; no translation service involved.
+        reply = safety.crisis_response(settings.CRISIS_REGION, source_lang)
         resources_shown = True
         safety.log_safety_event(
             safety_events_collection,
@@ -391,7 +495,7 @@ def chat_endpoint(
 
         try:
             reply_en = llm.chat(model_messages, temperature=0.8)
-            reply = _translate(reply_en, "en", source_lang)
+            reply = i18n.translate(reply_en, "en", source_lang)
         except llm.LLMUnavailable:
             reply = (
                 "I'm having trouble thinking clearly right now — that's on my "
@@ -400,7 +504,9 @@ def chat_endpoint(
             )
 
         if assessment.needs_resources:
-            reply = safety.append_resources(reply, settings.CRISIS_REGION)
+            reply = safety.append_resources(
+                reply, settings.CRISIS_REGION, source_lang
+            )
             resources_shown = True
             safety.log_safety_event(
                 safety_events_collection,
@@ -579,7 +685,7 @@ def complete_task(task_id: str, current_user: str = Depends(get_current_user)):
 # ------------------------------------------------------------- meditation
 @app.post("/meditation")
 def record_meditation(current_user: str = Depends(get_current_user)):
-    today = utcnow().strftime("%Y-%m-%d")
+    today = _local_today()
     meditation_collection.update_one(
         {"user_id": current_user, "date": today},
         {"$setOnInsert": {"completed": True, "created_at": utcnow()}},
@@ -606,7 +712,7 @@ def _streaks(dates: list[str]) -> tuple[int, int]:
         longest = max(longest, run)
 
     last = datetime.strptime(unique[-1], "%Y-%m-%d").date()
-    today = utcnow().date()
+    today = datetime.strptime(_local_today(), "%Y-%m-%d").date()
     current = run if (today - last) <= timedelta(days=1) else 0
     return current, longest
 
@@ -631,6 +737,8 @@ def get_meditation(owner: str = Depends(require_owner)):
         "longest_streak": longest,
         "total_sessions": len(sessions),
         "suggested_session": suggested,
+        # The Meditation screen reads `suggestion`; keep both names.
+        "suggestion": f"Suggested for you today: {suggested}",
     }
 
 
@@ -670,10 +778,14 @@ def create_post(payload: PostIn, current_user: str = Depends(get_current_user)):
             action="community_post_intercepted",
             text_length=len(payload.content),
         )
-        raise HTTPException(
-            status_code=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS,
-            detail=safety.crisis_response(settings.CRISIS_REGION),
-        )
+        # Not an error: the request was handled, just not by publishing it.
+        # The client shows `safety_notice` in place of the post.
+        return {
+            "success": False,
+            "posted": False,
+            "safety_notice": safety.crisis_response(settings.CRISIS_REGION),
+            "message": "Your post wasn't published.",
+        }
 
     result = community_collection.insert_one(
         {
@@ -696,10 +808,8 @@ def get_posts(current_user: str = Depends(get_current_user)):
         # Never ship the full like roster — it leaks who else uses the app.
         post.pop("likes", None)
         # Pseudonymise authors; the wall is meant to be anonymous.
-        post["author"] = (
-            "You" if post["user_id"] == current_user else f"Member {abs(hash(post['user_id'])) % 9000 + 1000}"
-        )
-        post.pop("user_id", None)
+        owner = post.pop("user_id", None) or ""
+        post["author"] = "You" if owner == current_user else _pseudonym(owner)
     return {"success": True, "posts": posts}
 
 
@@ -809,5 +919,14 @@ def delete_my_account(current_user: str = Depends(get_current_user)) -> OkOut:
         twin_reports_collection,
     ):
         collection.delete_many({"user_id": current_user})
+    # Everything else keyed to the person: sessions that could still be
+    # refreshed, the safety audit rows, pending codes, and their likes on
+    # other people's posts.
+    refresh_tokens_collection.delete_many({"user_id": current_user})
+    safety_events_collection.delete_many({"user_id": current_user})
+    otp_collection.delete_many({"email": current_user})
+    community_collection.update_many(
+        {"likes": current_user}, {"$pull": {"likes": current_user}}
+    )
     users_collection.delete_one({"username": current_user})
     return OkOut()

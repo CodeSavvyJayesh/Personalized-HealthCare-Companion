@@ -67,6 +67,31 @@ def _headers() -> dict[str, str]:
     return headers
 
 
+def _post(model: str, messages: list[dict[str, str]], temperature: float,
+          max_tokens: int | None, timeout: int) -> requests.Response:
+    payload: dict = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "top_p": 0.9,
+    }
+    if max_tokens:
+        payload["max_tokens"] = max_tokens
+    return requests.post(
+        f"{settings.LLM_BASE_URL}/chat/completions",
+        json=payload,
+        headers=_headers(),
+        timeout=timeout,
+    )
+
+
+def _retry_after(response: requests.Response) -> float:
+    try:
+        return float(response.headers.get("retry-after", "1"))
+    except ValueError:
+        return 1.0
+
+
 def chat(
     messages: list[dict[str, str]],
     *,
@@ -74,47 +99,72 @@ def chat(
     max_tokens: int | None = None,
     timeout: int | None = None,
 ) -> str:
+    """One chat completion. Raises LLMUnavailable on any failure.
+
+    Rate limiting (HTTP 429) is handled separately from real failures. A
+    hosted free tier says "slow down" routinely; treating that as the server
+    being dead would trip the breaker and take chat offline for everyone for
+    30 seconds over what is a one-second wait. So a 429 gets one short retry,
+    then the fallback model if one is configured, and never counts toward
+    the breaker.
+    """
     if breaker.is_open:
         raise LLMUnavailable("LLM circuit breaker is open")
 
-    payload: dict = {
-        "model": settings.LLM_MODEL,
-        "messages": messages,
-        "temperature": temperature,
-        "top_p": 0.9,
-    }
-    if max_tokens:
-        payload["max_tokens"] = max_tokens
+    limit = timeout or settings.LLM_TIMEOUT
+    models = [settings.LLM_MODEL]
+    if settings.LLM_FALLBACK_MODEL and settings.LLM_FALLBACK_MODEL != settings.LLM_MODEL:
+        models.append(settings.LLM_FALLBACK_MODEL)
 
-    url = f"{settings.LLM_BASE_URL}/chat/completions"
+    last_error = "no attempt made"
     try:
-        response = requests.post(
-            url,
-            json=payload,
-            headers=_headers(),
-            timeout=timeout or settings.LLM_TIMEOUT,
-        )
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
-        breaker.record_success()
-        return content.strip()
+        for index, model in enumerate(models):
+            response = _post(model, messages, temperature, max_tokens, limit)
+
+            if response.status_code == 429:
+                wait = _retry_after(response)
+                if wait <= 3 and index == len(models) - 1:
+                    time.sleep(wait)
+                    response = _post(model, messages, temperature, max_tokens, limit)
+                if response.status_code == 429:
+                    last_error = f"{model} is rate limited"
+                    log.warning("LLM rate limited on %s", model)
+                    continue
+
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+            breaker.record_success()
+            return (content or "").strip()
     except Exception as exc:
         breaker.record_failure()
-        log.error("LLM call failed (%s): %s", url, exc)
+        log.error("LLM call failed (%s): %s", settings.LLM_BASE_URL, exc)
         raise LLMUnavailable(str(exc)) from exc
+
+    # Every model was rate limited: unavailable for this request, but the
+    # provider is up, so the breaker is left alone.
+    raise LLMUnavailable(last_error)
 
 
 def health() -> dict:
     return {
         "base_url": settings.LLM_BASE_URL,
         "model": settings.LLM_MODEL,
+        "fallback_model": settings.LLM_FALLBACK_MODEL or None,
+        "api_key_set": bool(settings.LLM_API_KEY),
         "circuit_open": breaker.is_open,
     }
 
 
+def is_local() -> bool:
+    return any(h in settings.LLM_BASE_URL for h in ("127.0.0.1", "localhost", "host.docker.internal"))
+
+
 def warm_up() -> None:
     """Fire-and-forget warmup so the first real user does not pay for the
-    model load."""
+    model load. Only meaningful for a local model server: a hosted API has
+    nothing to warm, and the call would just spend rate-limit budget."""
+    if not is_local():
+        return
 
     def _run() -> None:
         try:

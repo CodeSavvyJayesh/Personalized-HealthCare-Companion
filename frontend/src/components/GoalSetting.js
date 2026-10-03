@@ -82,7 +82,7 @@ function GoalSetting({ userId }) {
       }
     } catch (err) {
       console.error("Error adding goal", err);
-      showToast("An error occurred", "error");
+      showToast(err.message || "Couldn't add the goal", "error");
     }
   };
 

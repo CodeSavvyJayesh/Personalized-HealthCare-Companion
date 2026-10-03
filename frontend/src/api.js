@@ -120,11 +120,25 @@ export async function apiFetch(input, init = {}) {
 
   if (!response.ok) {
     const detail = body?.detail;
-    const message =
+    let message =
       (typeof detail === "string" && detail) ||
-      (Array.isArray(detail) && detail[0]?.msg) ||
       body?.message ||
       `Request failed (${response.status})`;
+
+    // Validation errors arrive as a list of {loc, msg}. "String should have
+    // at least 8 characters" is useless without knowing which field it is
+    // about, so name the field.
+    if (Array.isArray(detail) && detail[0]?.msg) {
+      const first = detail[0];
+      const field = Array.isArray(first.loc)
+        ? String(first.loc[first.loc.length - 1]).replace(/_/g, " ")
+        : "";
+      message = field && field !== "body" ? `${field}: ${first.msg}` : first.msg;
+    }
+
+    if (response.status === 429) {
+      message = "You're going a little fast. Please wait a moment and try again.";
+    }
     throw new ApiError(message, response.status);
   }
 

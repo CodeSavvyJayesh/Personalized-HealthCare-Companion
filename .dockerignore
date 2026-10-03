@@ -1,0 +1,31 @@
+# Keep the build context small and secrets out of the image.
+.git
+.github
+.vscode
+**/.env
+**/.env.*
+!**/.env.example
+
+**/node_modules
+frontend/build
+node_modules
+package.json
+package-lock.json
+
+**/venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
+# 268 MB of torch weights the image does not use (it downloads the ONNX
+# model at build time instead).
+backend/models/*.safetensors
+backend/models/*.bin
+backend/models/*.onnx
+backend/models/*.part
+
+Claude outputs
+*.md
+!README.md
+gitsteps.txt

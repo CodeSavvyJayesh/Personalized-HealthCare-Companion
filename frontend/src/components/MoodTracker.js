@@ -169,7 +169,7 @@ export default function MoodTracker({ userId }) {
 
       setToast({
         type: "error",
-        message: "Server error while saving",
+        message: err.message || "Couldn't save your mood. Please try again.",
       });
     } finally {
       setLoading(false);

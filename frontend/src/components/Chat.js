@@ -250,10 +250,19 @@ function Chat({ userId, sessionId }) {
         }
       }, 40);
     } catch (e) {
+      // Say what actually happened when we know; a rate limit or a lost
+      // session is something the person can act on, "something went wrong"
+      // is not.
+      let failureText = "I'm here 💙 but something went wrong. Please try again.";
+      if (e?.status === 429) {
+        failureText = "I'm here 💙 — you're sending messages a little fast for me. Give me a moment and try again.";
+      } else if (e?.status === 404 || e?.status === 403) {
+        failureText = "I couldn't find this chat session. Please sign out and sign in again to start a fresh one.";
+      }
       setMessages((prev) => [
         ...prev,
         {
-          text: "I'm here 💙 but something went wrong.",
+          text: failureText,
           sender: "bot",
           timestamp: new Date().toLocaleTimeString([], {
             hour: "2-digit",

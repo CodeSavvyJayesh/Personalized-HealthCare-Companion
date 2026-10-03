@@ -78,70 +78,76 @@ safety_events_collection = db["safety_events"]
 refresh_tokens_collection = db["refresh_tokens"]
 
 
+def _index(collection, keys, **options) -> None:
+    """Create one index, on its own. A failure is logged and skipped so it
+    cannot take the indexes after it down with it — the previous version
+    wrapped the whole list in a single try, which meant one bad legacy row
+    in `users` silently left the OTP and refresh-token TTL indexes unbuilt."""
+    try:
+        collection.create_index(keys, **options)
+    except Exception as exc:  # pragma: no cover - best effort by design
+        log.warning("Index %s on %s skipped: %s", keys, collection.name, exc)
+
+
 def ensure_indexes() -> None:
     """Idempotent index creation. Safe to call on every boot."""
-    try:
-        # Partial index: only documents whose username is actually a string
-        # are indexed. Without this, legacy rows with username: null collide
-        # with each other (null == null) and the unique index build fails,
-        # leaving the collection with NO uniqueness guarantee at all.
-        users_collection.create_index(
-            [("username", ASCENDING)],
-            unique=True,
-            partialFilterExpression={"username": {"$type": "string"}},
-        )
+    # One reachability check up front. Without it, an unreachable database
+    # costs a full server-selection timeout per index and holds startup for
+    # minutes; with it, the API comes up straight away and /health says why.
+    if not ping():
+        log.warning("Database unreachable at startup; index setup skipped")
+        return
 
-        messages_collection.create_index(
-            [("session_id", ASCENDING), ("timestamp", ASCENDING)]
-        )
-        messages_collection.create_index(
-            [("user_id", ASCENDING), ("timestamp", DESCENDING)]
-        )
+    # Partial index: only documents whose username is actually a string are
+    # indexed. Without this, legacy rows with username: null collide with
+    # each other (null == null) and the unique index build fails, leaving
+    # the collection with NO uniqueness guarantee at all.
+    _index(
+        users_collection,
+        [("username", ASCENDING)],
+        unique=True,
+        partialFilterExpression={"username": {"$type": "string"}},
+    )
 
-        sessions_collection.create_index([("user_id", ASCENDING)])
+    _index(messages_collection, [("session_id", ASCENDING), ("timestamp", ASCENDING)])
+    _index(messages_collection, [("user_id", ASCENDING), ("timestamp", DESCENDING)])
+    _index(sessions_collection, [("user_id", ASCENDING)])
 
-        for coll in (
-            journals_collection,
-            moods_collection,
-            tasks_collection,
-            sleep_collection,
-            goals_collection,
-            fitness_metrics_collection,
-            fitness_plans_collection,
-            fitness_workouts_collection,
-        ):
-            coll.create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
+    for coll in (
+        journals_collection,
+        moods_collection,
+        tasks_collection,
+        sleep_collection,
+        goals_collection,
+        fitness_metrics_collection,
+        fitness_plans_collection,
+        fitness_workouts_collection,
+    ):
+        _index(coll, [("user_id", ASCENDING), ("created_at", DESCENDING)])
 
-        fitness_profiles_collection.create_index(
-            [("user_id", ASCENDING)], unique=True
-        )
-        twin_actions_collection.create_index(
-            [("user_id", ASCENDING), ("date", ASCENDING), ("action_id", ASCENDING)],
-            unique=True,
-        )
-        twin_reports_collection.create_index(
-            [("user_id", ASCENDING), ("created_at", DESCENDING)]
-        )
+    _index(fitness_profiles_collection, [("user_id", ASCENDING)], unique=True)
+    _index(
+        twin_actions_collection,
+        [("user_id", ASCENDING), ("date", ASCENDING), ("action_id", ASCENDING)],
+        unique=True,
+    )
+    _index(twin_reports_collection, [("user_id", ASCENDING), ("created_at", DESCENDING)])
 
-        meditation_collection.create_index(
-            [("user_id", ASCENDING), ("date", ASCENDING)], unique=True
-        )
-        community_collection.create_index([("created_at", DESCENDING)])
+    _index(
+        meditation_collection,
+        [("user_id", ASCENDING), ("date", ASCENDING)],
+        unique=True,
+    )
+    _index(community_collection, [("created_at", DESCENDING)])
 
-        # TTL index: Mongo expires the OTP for us, no cleanup job needed.
-        otp_collection.create_index("expires_at", expireAfterSeconds=0)
-        otp_collection.create_index([("email", ASCENDING)], unique=True)
+    # TTL indexes: Mongo expires these documents for us, no cleanup job.
+    _index(otp_collection, "expires_at", expireAfterSeconds=0)
+    _index(otp_collection, [("email", ASCENDING)], unique=True)
+    _index(refresh_tokens_collection, "expires_at", expireAfterSeconds=0)
+    _index(refresh_tokens_collection, [("jti", ASCENDING)], unique=True)
+    _index(refresh_tokens_collection, [("user_id", ASCENDING)])
 
-        refresh_tokens_collection.create_index(
-            "expires_at", expireAfterSeconds=0
-        )
-        refresh_tokens_collection.create_index([("jti", ASCENDING)], unique=True)
-
-        safety_events_collection.create_index(
-            [("user_id", ASCENDING), ("created_at", DESCENDING)]
-        )
-    except Exception as exc:  # pragma: no cover - index setup is best effort
-        log.warning("Index setup skipped: %s", exc)
+    _index(safety_events_collection, [("user_id", ASCENDING), ("created_at", DESCENDING)])
 
 
 def ping() -> bool:

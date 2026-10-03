@@ -31,6 +31,11 @@ frontend/build/
 # model weights (large binaries do not belong in git)
 backend/models/*.safetensors
 backend/models/*.bin
+backend/models/*.onnx
+backend/models/*.part
+
+# the React build copied in for server.py
+backend/static/
 
 # editors / os
 .vscode/

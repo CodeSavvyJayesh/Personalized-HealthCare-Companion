@@ -32,6 +32,7 @@ def _csv(name: str, default: str = "") -> list[str]:
 class Settings:
     # ---------- environment ----------
     ENV: str = os.getenv("ENV", "development")
+    IS_PRODUCTION: bool = ENV == "production"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 
     # ---------- database ----------
@@ -48,6 +49,13 @@ class Settings:
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_MINUTES: int = int(os.getenv("ACCESS_TOKEN_MINUTES", "30"))
     REFRESH_TOKEN_DAYS: int = int(os.getenv("REFRESH_TOKEN_DAYS", "14"))
+    # POST /signup creates an account with no email verification. That is
+    # useful for local development and the smoke test, and a hole in
+    # production, where the only door should be the OTP flow.
+    ALLOW_DIRECT_SIGNUP: bool = (
+        os.getenv("ALLOW_DIRECT_SIGNUP", "false" if IS_PRODUCTION else "true").lower()
+        == "true"
+    )
 
     # ---------- cors ----------
     CORS_ORIGINS: list[str] = _csv(
@@ -60,16 +68,29 @@ class Settings:
         "LLM_BASE_URL", "http://127.0.0.1:11434/v1"
     ).rstrip("/")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "llama3:8b")
+    # Tried when the main model is rate limited. Hosted free tiers meter each
+    # model separately, so a smaller model is usually still available.
+    LLM_FALLBACK_MODEL: str = os.getenv("LLM_FALLBACK_MODEL", "")
     LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
     LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "60"))
 
     # ---------- sentiment ----------
     SENTIMENT_MODEL_PATH: str = os.getenv("SENTIMENT_MODEL_PATH", "./models")
+    # auto | onnx | torch | off — see sentiment.py
+    SENTIMENT_BACKEND: str = os.getenv("SENTIMENT_BACKEND", "auto").lower()
+    SENTIMENT_ONNX_FILE: str = os.getenv("SENTIMENT_ONNX_FILE", "model.onnx")
     # Below this confidence the binary SST-2 head is not actually telling us
     # anything, so we call it NEUTRAL instead of forcing a polarity.
     SENTIMENT_NEUTRAL_THRESHOLD: float = float(
         os.getenv("SENTIMENT_NEUTRAL_THRESHOLD", "0.80")
     )
+
+    # ---------- translation ----------
+    # auto   Google (via deep-translator) first, the LLM if that fails
+    # google deep-translator only
+    # llm    the configured LLM only
+    # off    no translation; text is passed through untouched
+    TRANSLATION_PROVIDER: str = os.getenv("TRANSLATION_PROVIDER", "auto").lower()
 
     # ---------- memory ----------
     CHAT_WINDOW_TURNS: int = int(os.getenv("CHAT_WINDOW_TURNS", "12"))
@@ -77,7 +98,13 @@ class Settings:
 
     # ---------- email / otp ----------
     EMAIL_FROM: str = os.getenv("EMAIL_FROM", "")
+    EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "MindWell")
     EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD", "")
+    # HTTP email APIs. Many hosts (Render's free tier among them) block
+    # outbound SMTP ports entirely, so SMTP alone is not deployable there.
+    # If either key is set it is used instead of SMTP.
+    BREVO_API_KEY: str = os.getenv("BREVO_API_KEY", "")
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
     SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     OTP_TTL_SECONDS: int = int(os.getenv("OTP_TTL_SECONDS", "300"))
@@ -96,9 +123,27 @@ class Settings:
     TZ_OFFSET_MINUTES: int = int(os.getenv("TZ_OFFSET_MINUTES", "330"))
 
 
+def _check_production(s: Settings) -> None:
+    """Refuse to boot a production instance with development-grade settings."""
+    if not s.IS_PRODUCTION:
+        return
+    problems = []
+    if len(s.JWT_SECRET) < 32:
+        problems.append("JWT_SECRET must be at least 32 characters in production")
+    if "127.0.0.1" in s.LLM_BASE_URL or "localhost" in s.LLM_BASE_URL:
+        problems.append(
+            "LLM_BASE_URL points at this machine; a deployed instance needs a "
+            "hosted OpenAI-compatible endpoint (see .env.example)"
+        )
+    if problems:
+        sys.exit("FATAL: " + "; ".join(problems))
+
+
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    _check_production(s)
+    return s
 
 
 settings = get_settings()
